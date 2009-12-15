@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.13 2009/12/05 19:28:15 strauman Exp $ */
+/* $Id: padProto.h,v 1.1.1.1 2009/12/06 16:19:02 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -43,7 +43,7 @@ typedef struct PadCommandRec_ {
 	int8_t		type;			/* PADCMD_XX                           */
 	int8_t		sdata[3];		/* commands with small data needs      */
 	uint32_t	ldata[];		/* word sized commands                 */
-} PadCommandRec, *PadCommand;
+} __attribute__((may_alias)) PadCommandRec, *PadCommand;
 
 #define PADCMD_STRM_FLAG_LE	1	/* They want little-endian data    */
 #define PADCMD_STRM_FLAG_CM	2	/* They want column-major  data    */
@@ -62,14 +62,14 @@ typedef struct PadStrmCommandRec_ {
 	uint8_t		flags;			/* echoed in 'spec[0]' of reply        */
 	uint16_t	port;			/* port where to send data             */
 	uint32_t	nsamples;		/* # samples per channel               */
-} PadStrmCommandRec, *PadStrmCommand;
+} __attribute__((may_alias)) PadStrmCommandRec, *PadStrmCommand;
 
 typedef struct PadSimCommandRec_ {
 	int8_t		type;
 	int8_t		flags;
 	int8_t		sdata[2];
 	int32_t		a,b,c,d;
-} PadSimCommandRec, *PadSimCommand;
+} __attribute__((may_alias)) PadSimCommandRec, *PadSimCommand;
 
 #define PADPROTO_VERSION1		0x31	/* some magic number           */
 
@@ -86,7 +86,7 @@ typedef struct PadRequestRec_ {
 	uint32_t	xid;            /* transaction 'id'                    */
 	uint32_t	r2;				/* align to 16-bytes (incl. IP hdrs)   */
 	uint8_t		data[];
-} PadRequestRec, *PadRequest;
+} __attribute__((may_alias)) PadRequestRec, *PadRequest;
 /* appended here are |nCmds| PadCommandRecs */
 
 typedef struct PadReplyRec_ {
@@ -101,7 +101,7 @@ typedef struct PadReplyRec_ {
 	int16_t		status;			/* error code (-errno)                 */
 	uint8_t		spec[2];		/* 2 bytes of command specific data    */
 	uint8_t		data[];         /* aligned on 16-byte boundary         */
-} PadReplyRec, *PadReply;
+} __attribute__((may_alias)) PadReplyRec, *PadReply;
 
 #define strm_cmd_flags	spec[0]
 #define strm_cmd_idx    spec[1]
@@ -119,15 +119,26 @@ int
 padProtoHandler(PadRequest req_p, int me, int *killed_p, uint32_t peerip);
 
 /* Handle padProto requests on 'port' for channel/slot 'chnl' until an error
- * occurs or a KILL command is received.
+ * occurs or a KILL command is received (the padUdpHandler() must be idle
+ * for 'tout_ms' before it returns due to a KILL command).
  *
  * If the port number is zero, then the predefined port PADPROTO_PORT
  * (padProto.h) will be used.
  *
+ * The 'mcaddr' argument may be set to an IPV4 multicast address
+ * (in NETWORK-byte order) which will then be joined.
+ *
+ * If there is no padProto activity for 'tout_ms' then the the 'poll_cb'
+ * (if non-null) is executed and its return value examined. 'padUdpHandler'
+ * returns if 'poll_cb()' returns nonzero.
+ *
+ * If 'tout_ms' is less than or equal to zero then a default timeout
+ * of 1000ms is used.
+ *
  * RETURNS: 0 on success -errno on error
  */
 int
-padUdpHandler(int port, int chnl);
+padUdpHandler(uint32_t mcaddr, int port, int me, int tout_ms, int (*poll_cb)(void*), void *cb_arg);
 
 /* Send a request to 'connected' peer
  *        'sd': socket descriptor

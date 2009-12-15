@@ -314,7 +314,7 @@ static int32_t c = 4000;
 static int32_t d = 5000;
 
 int
-padStreamSimulated()
+padStreamSimulated(void *unused)
 {
 	return padStream(a,b,c,d);
 }
@@ -336,7 +336,7 @@ int dosend = 1;
 	}
 
 
-	return  dosend ? padStreamSimulated() : 0;
+	return  dosend ? padStreamSimulated(0) : 0;
 }
 
 int

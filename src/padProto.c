@@ -229,9 +229,9 @@ volatile int padudpkilled = 0;
 
 
 int
-padUdpHandler(int port, int me)
+padUdpHandler(uint32_t mcaddr, int port, int me, int tout_ms, int (*poll_cb)(void*), void *cb_arg)
 {
-int         err = -1;
+int         err;
 int         sd;
 UdpCommPkt  p;
 uint32_t	peerip;
@@ -243,8 +243,16 @@ uint32_t	peerip;
 		return sd;
 	}
 
+	if ( mcaddr && (err = udpCommJoinMcast(sd, mcaddr)) ) {
+		fprintf(stderr,"padUdpHandler() unable to join MC address 0x%08"PRIx32" (err %i)\n",ntohl(mcaddr),err);
+		return err;
+	}
+
+	if ( tout_ms <= 0 )
+		tout_ms = 1000; /* ~ 1s */
+
 	while ( !padudpkilled ) {
-		if ( (p = udpCommRecvFrom(sd, 10, &peerip, 0)) ) {
+		if ( (p = udpCommRecvFrom(sd, tout_ms, &peerip, 0)) ) {
 			err = padProtoHandler((PadRequest)udpCommBufPtr(p), me, (int*)&padudpkilled, peerip);
 			if ( 0 < err ) {
 				/* OK to send packet */
@@ -256,6 +264,9 @@ uint32_t	peerip;
 					fprintf(stderr,"padProtoHandler returned error %i\n",err);
 				}
 			}
+		} else {
+			if ( poll_cb && poll_cb(cb_arg) )
+				break;
 		}
 	}
 

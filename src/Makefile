@@ -1,7 +1,6 @@
 TOP=..
-include $(TOP)/configure/CONFIG
 
-CROSS_COMPILER_TARGET_ARCHS=RTEMS-uC5282 RTEMS-beatnik
+include $(TOP)/configure/CONFIG
 
 #----------------------------------------
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
@@ -9,23 +8,22 @@ CROSS_COMPILER_TARGET_ARCHS=RTEMS-uC5282 RTEMS-beatnik
 
 #==================================================
 # Build an IOC support library
-LIBRARY_HOST      = udpCommBSD padSupport
-LIBRARY_IOC_RTEMS = udpCommBSD padSupport udpComm
+#LIBRARY_HOST        = udpCommBSD padSupport
+LIBRARY_IOC_DEFAULT = udpCommBSD padSupport
+LIBRARY_IOC_RTEMS   = udpCommBSD padSupport udpComm
 
-PROD_HOST         = padProtoHost
+PROD_HOST           = padProtoHost
 
+# SDDS_LIB is defined in the RELEASE file and points
+# to the local SDDS installation
+ifdef SDDS_LIB
 USE_SDDS=YES
+else
+USE_SDDS=NO
+endif
 
 SDDS_YES_SRCS=sddsrd.c
-# a hack because my SDDS build used another BASE version
-# and the paranoia check wouldn't let me use it
-ifeq (hack,hack)
 SDDS_YES_LIBS=SDDS1c
-else
-SDDS_YES_LDFLAGS=-L/home/till/epics/extensions/lib/$(T_A)
-USR_LDFLAGS+=$(SDDS_$(USE_SDDS)_LDFLAGS)
-SDDS_YES_LIBS=SDDS1c
-endif
 SDDS_YES_CPPFLAGS=-DUSE_SDDS
 
 padProtoHost_SRCS=padProtoHost.c bpmsim.c hostStream.c
@@ -37,7 +35,7 @@ INC += padProto.h padStream.h udpComm.h
 
 
 #Indicate that we want to use 'normal' socket implementation
-USR_CPPFLAGS += -DBSDSOCKET $(SDDS_$(USE_SDDS)_CPPFLAGS)
+USR_CPPFLAGS += $(SDDS_$(USE_SDDS)_CPPFLAGS)
 
 # install devXxxSoft.dbd into <top>/dbd
 #DBD += bpmPadSupport.dbd

@@ -1,11 +1,7 @@
-/* $Id: padProtoHost.c,v 1.15 2009/12/05 19:28:15 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.1.1.1 2009/12/06 16:19:02 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
-
-#ifndef BSDSOCKET
-#define  BSDSOCKET
-#endif
 
 #include <padProto.h>
 #include <stdio.h>
@@ -13,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <netdb.h>
 
 #include <arpa/inet.h>
 
@@ -98,6 +95,7 @@ usage(char *nm)
 #ifdef USE_SDDS
 	fprintf(stderr,"          -p start:end  SDDS page range (1-based) to 'play'\n");
 #endif
+	fprintf(stderr,"          -m mcaddr     Multicast address to use in server mode\n");
 }
 
 static void
@@ -119,50 +117,6 @@ UdpCommPkt        p = 0;
 		dumpReply((PadReply)p);
 
 	udpCommFreePacket(p);
-}
-
-static int padudpkilled = 0;
-
-static int
-server(int port, int chan, int timeout_ms)
-{
-int         err = -1;
-int         sd;
-UdpCommPkt  p;
-uint32_t	peerip;
-int         T = timeout_ms <= 0 ? 1000 : timeout_ms;
-
-	if ( (sd = udpCommSocket(port)) < 0 ) {
-		return sd;
-	}
-
-	while ( !padudpkilled ) {
-		if ( (p = udpCommRecvFrom(sd, T, &peerip, 0)) ) {
-			err = padProtoHandler((PadRequest)udpCommBufPtr(p), chan, (int*)&padudpkilled, peerip);
-			if ( 0 < err ) {
-				/* OK to send packet */
-				udpCommReturnPacket(p, ntohs(((PadReply)udpCommBufPtr(p))->nBytes));
-			} else {
-				/* release buffer */
-				udpCommFreePacket(p);
-				if ( err < 0 ) {
-					fprintf(stderr,"padProtoHandler returned error %i\n",err);
-				}
-			}
-		} else {
-			if ( timeout_ms > 0 ) {
-				/* server period expired; try to send stream */
-				padStreamSimulated();
-			}
-		}
-	}
-
-	padudpkilled = 0;
-	err          = 0;
-	
-	udpCommClose(sd);
-
-	return 0;
 }
 
 static void
@@ -249,8 +203,11 @@ const char        *sddsnam  = 0;
 int               pgFst     = 0;
 int               pgLst     = -1;
 #endif
+uint32_t          mcaddr    = 0;
+const char *      mcgrp     = 0;
+int               err;
 
-	while ( (ch = getopt(argc, argv, "bvcehl:n:C:s:d:S:P:p:")) > 0 ) {
+	while ( (ch = getopt(argc, argv, "bvcehl:n:C:s:d:S:P:p:m:")) > 0 ) {
 		switch (ch) {
 			default:
 				fprintf(stderr,"Unknown option '%c'\n",ch);
@@ -337,6 +294,9 @@ int               pgLst     = -1;
 				type = PADCMD_STRM;
 			break;
 
+			case 'm':
+				mcgrp = optarg;
+			break;
 		}
 	}
 
@@ -360,12 +320,36 @@ int               pgLst     = -1;
 
 	if ( srvrMode ) {
 		extern int padProtoDebug;
+		struct addrinfo *res = 0, *p;
+
+		if ( mcgrp ) {
+			if ( (err = getaddrinfo(mcgrp, 0, 0, &res)) ) {
+				fprintf(stderr,"Unable to lookup '%s': %s\n", mcgrp, gai_strerror(err));
+				if ( res )
+					freeaddrinfo(res);
+				exit(1);	
+			} else {
+				for ( p = res; p; p = p->ai_next ) {
+					if ( AF_INET == p->ai_family ) {
+						mcaddr = ((struct sockaddr_in*)p->ai_addr)->sin_addr.s_addr;
+						break;
+					}
+				}
+				freeaddrinfo(res);
+				if ( ! mcaddr ) {
+					fprintf(stderr,"Unable to find '%s': ???\n", mcgrp);
+					exit(1);
+				}
+			}
+		}
+
 		padProtoDebug = dbg;
-		server(port, theChannel, srvrPerMs);
+		padUdpHandler(mcaddr, port, theChannel, srvrPerMs, padStreamSimulated ,0);
 		/* should never return here */
 		perror("padUdpHandler failed");
 		exit(1);
 	}
+
 
 	sd = udpCommSocket(listener ? port : 0);
 

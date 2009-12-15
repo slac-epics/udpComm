@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.5 2008/05/24 00:57:14 strauman Exp $ */
+/* $Id: padStream.h,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -54,6 +54,23 @@ padStreamTest();
 /* execute 'padStreamSend' with simulated/generated data */
 int
 padStreamSim(PadSimCommand scmd);
+
+typedef struct PadStripSimValRec_ {
+	int32_t	a,b,c,d;
+} PadStripSimValRec, *PadStripSimVal;
+
+/* 'getdata' callback for generating simulated waveforms.
+ * The amplitudes are passed in 'uarg' which must be
+ * a 'PadStripSimVal' pointer.
+ */
+
+void *
+padStreamSim_getdata(void *packetBuffer,
+			int idx,
+			int nsamples,
+			int little_endian,
+			int column_major,
+			void *uarg);
 
 /* Function that actually stops streaming transfer */
 int

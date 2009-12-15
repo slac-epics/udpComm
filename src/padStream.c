@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.21 2009/12/05 19:28:15 strauman Exp $ */
+/* $Id: padStream.c,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -212,14 +212,10 @@ int i;
 	return buf;
 }
 
-typedef struct StripSimValRec_ {
-	int32_t	a,b,c,d;
-} StripSimValRec, *StripSimVal;
+static PadStripSimValRec strips;
 
-static StripSimValRec strips;
-
-static void *
-streamSim(void *packetBuffer,
+void *
+padStreamSim_getdata(void *packetBuffer,
 			int idx,
 			int nsamples,
 			int little_endian,
@@ -227,7 +223,7 @@ streamSim(void *packetBuffer,
 			void *uarg)
 {
 int16_t		*buf = packetBuffer;
-StripSimVal ini  = uarg;
+PadStripSimVal ini  = uarg;
 int         swp;
 static unsigned long noise = 1;
 
@@ -362,7 +358,7 @@ int dosend = 1;
 	}
 
 
-	return  dosend ? padStreamSend(streamSim,0, 0, &strips) : 0;
+	return  dosend ? padStreamSend(padStreamSim_getdata, 0, 0, &strips) : 0;
 }
 
 int

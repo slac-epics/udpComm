@@ -1,8 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.13 2009/12/05 19:28:15 strauman Exp $ */
-
-#ifndef BSDSOCKET
-#define BSDSOCKET
-#endif
+/* $Id: udpCommBSD.c,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -13,13 +9,6 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#if 0 /* avoid dependency :-( */
-/* to get alignment only */
-#include <lanIpProto.h>
-#else
-#define LAN_IP_BASIC_PACKET_ALIGNMENT 32
-#endif
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -27,7 +16,7 @@
 
 
 #define DO_ALIGN(x,a) (((uintptr_t)(x) + ((a)-1)) & ~((a)-1))
-#define BUFALIGN(x)   DO_ALIGN(x,LAN_IP_BASIC_PACKET_ALIGNMENT)
+#define BUFALIGN(x)   DO_ALIGN(x,UDPCOMM_ALIGNMENT)
 
 /* maintain same alignment of data-area 
  * which is seen when using lanIpBasic.
@@ -49,7 +38,7 @@ udpCommAllocPacket()
 void          *p_raw;
 UdpCommBSDPkt *p;
 
-	p_raw      = malloc(sizeof(*p) + PADSZ + LAN_IP_BASIC_PACKET_ALIGNMENT-1);
+	p_raw      = malloc(sizeof(*p) + PADSZ + UDPCOMM_ALIGNMENT-1);
 
 	if ( !p_raw )
 		return 0;

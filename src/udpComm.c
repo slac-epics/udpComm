@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: udpComm.c,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
 
 #include <lanIpBasic.h>
 #include <netinet/in.h>
@@ -11,6 +11,10 @@
  */
 
 #include <udpComm.h>
+
+#if UDPCOMM_ALIGNMENT > LAN_IP_BASIC_PACKET_ALIGNMENT
+#error "lanIpBasic alignment unsufficient -- must change and rebuild lanIpBasic"
+#endif
 
 int     
 udpCommSocket(int port)

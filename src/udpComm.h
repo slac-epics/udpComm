@@ -1,4 +1,4 @@
-/* $Id: udpComm.h,v 1.14 2009/12/05 19:28:15 strauman Exp $ */
+/* $Id: udpComm.h,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
 #ifndef UDPCOMM_LAYER_H
 #define UDPCOMM_LAYER_H
 
@@ -12,6 +12,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Payload is guaranteed to be aligned to UDPCOMM_ALIGNMENT */
+#define UDPCOMM_ALIGNMENT  32
 
 #ifndef UdpCommPkt
 typedef void * UdpCommPkt;

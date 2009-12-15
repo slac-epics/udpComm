@@ -1,0 +1,30 @@
+ 20091215 (T.S.)
+ - configure/CONFIG_SITE, src/Makefile: define CROSS_COMPILER_TARGET_ARCHS
+   in the former file.
+ - configure/RELEASE, src/Makefile: Determine from SDDS_LIB (optionally
+   defined by 'configure/RELEASE') variable whether to build with SDDS
+   support or without.
+ - src/hostStream.h, src/hostStream.c, src/padProtoHost.c: add 'unused'
+   arg to padStreamSimulated() so that the declaration matches the (newly
+   added) padUdpHandler() callback prototype.
+ - src/padProto.c, src/padProto.h: Add 'timeout' and 'poll_cb' arguments
+   to padUdpHandler thus omitting a clone in padProtoHost which now can use
+   the vanilla version of padUdpHandler().
+   'poll_cb()' is executed (if non-NULL) every time there is no padProto
+   activity for 'timeout' milli-seconds.
+ - src/padProto.c, src/padProto.h: Added 'mcaddr' argument to padUdpHandler().
+   If nonzero then the MC address is set on the socket used for communication.
+ - src/padProto.h: killed 'alias rule violation' warnings by declaring most
+   protocol headers/structs with 'may_alias' attribute.
+ - src/padProtoHost.c: Added -m option to let the server listen to a 
+   multicast address (server mode only).
+   Use padUdpHandler() from library instead of a local, modified copy.
+ - src/padStream.c, src/padStream.h: made 'streamSim()' routine public
+   as 'padStreamSim_getdata()' -- a callback that may be used with
+   padStreamSend.
+ - src/udpComm.c: Check for UDPCOMM_ALIGNMENT being satisfied by
+   LAN_IP_BASIC_ALIGNMENT.
+ - src/udpComm.h: Define UDPCOMM_ALIGNMENT.
+ - src/udpCommBSD.c: Use UDPCOMM_ALIGNMENT; LAN_IP_BASIC_ALIGNMENT is not
+   available here; however, we check compatibility when building the non-BSD
+   variant.

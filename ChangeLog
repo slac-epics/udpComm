@@ -2,7 +2,7 @@
  - src/padProto.c, src/padStream.c, src/padStream.h:
    moved stream connection state handling into the padStream module and
    added a 'timeout' feature so that a stream that is not 'petted' or
-   re-'started' within padStreamTimeoutSecs seconds is forcefully stopped.
+   re-'started' within padStreamTimeoutSecs seconds it is forcefully stopped.
  - src/padStream.c: BUGFIX: ensure proper alignment of 'replyPacket'.
  - src/padStream.c: padStreamStart() resets connection state to 'unconnected'
    if start_stop_callback() returns nonzero and passes this return code

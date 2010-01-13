@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
+/* $Id: padStream.h,v 1.2 2009/12/15 23:28:39 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -31,15 +31,16 @@ padStreamInitialize(void *if_p, int (*cb)(int start, void *uarg), void *uarg);
 int
 padStreamCleanup();
 
-/* refresh timestamp and transaction id */
+/* refresh timestamp and transaction id - 
+ * check for valid peer IP.
+ */
 int
-padStreamPet(PadRequest req);
+padStreamPet(PadRequest req, uint32_t hostip);
 
 /* Function that actually starts streaming transfer
  * to a host.
  *        'me': our channel #
  *    'hostip': IP address in network byte order.
- *  'hostport': UDP port on host (*host byte order*).
  */
 int
 padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip);
@@ -51,9 +52,17 @@ padStreamSend(void * (*getdata)(void *packBuffer, int idx, int nsamples, int end
 int
 padStreamTest();
 
-/* execute 'padStreamSend' with simulated/generated data */
+/* execute 'padStreamSend' with simulated/generated data
+ * if 'scmd' is non-NULL then the simulation parameters
+ * are updated from 'scmd'. If 'hostip' is nonzero then
+ * 'scmd' is only accepted if 'hostip' matches the peer
+ * who had started the stream. Otherwise an error is
+ * (-EADDRINUSE) is returned.
+ * 
+ * RETURNS: zero on success, nonzero on error (-errno).
+ */
 int
-padStreamSim(PadSimCommand scmd);
+padStreamSim(PadSimCommand scmd, uint32_t hostip);
 
 typedef struct PadStripSimValRec_ {
 	int32_t	a,b,c,d;
@@ -72,9 +81,14 @@ padStreamSim_getdata(void *packetBuffer,
 			int column_major,
 			void *uarg);
 
-/* Function that actually stops streaming transfer */
+/* Function that actually stops streaming transfer
+ * - check for valid peer IP.
+ *
+ * NOTE: if 'hostip' == 0 then the check for a valid peer
+ *       is skipped and the stream forcefully stopped.
+ */
 int
-padStreamStop(void);
+padStreamStop(uint32_t hostip);
 
 typedef enum {
 	PadDataBpm = 0,

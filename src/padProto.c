@@ -17,11 +17,6 @@
 int padProtoDebug = DEBUG;
 #endif
 
-typedef struct StreamPeerRec_ {
-	uint32_t  ip;
-	uint16_t  port;
-} StreamPeerRec, *StreamPeer;
-
 int
 padStreamStart(PadRequest req, PadStrmCommand cmd, int me, uint32_t hostip)
 __attribute__((weak, alias("padStreamStartNotimpl")));
@@ -29,36 +24,35 @@ __attribute__((weak, alias("padStreamStartNotimpl")));
 int
 padStreamStartNotimpl(PadRequest req, PadStrmCommand cmd, int me, uint32_t hostip)
 {
-
 	return -ENOSYS;
 }
 
 int
-padStreamPet(PadRequest req)
+padStreamPet(PadRequest req, uint32_t hostip)
 __attribute__((weak, alias("padStreamPetNotimpl")));
 
 int
-padStreamPetNotimpl(PadRequest req)
+padStreamPetNotimpl(PadRequest req, uint32_t hostip)
 {
 	return -ENOSYS;
 }
 
 int
-padStreamStop(void)
+padStreamStop(uint32_t hostip)
 __attribute__((weak, alias("padStreamStopNotimpl")));
 
 int
-padStreamStopNotimpl(void)
+padStreamStopNotimpl(uint32_t hostip)
 {
 	return -ENOSYS;
 }
 
 int
-padStreamSim(PadSimCommand scmd)
+padStreamSim(PadSimCommand scmd, uint32_t hostip)
 __attribute__((weak, alias("padStreamSimNotimpl")));
 
 int
-padStreamSimNotimpl(PadSimCommand scmd)
+padStreamSimNotimpl(PadSimCommand scmd, uint32_t hostip)
 {
 	return -ENOSYS;
 }
@@ -67,9 +61,6 @@ padStreamSimNotimpl(PadSimCommand scmd)
 int
 padProtoHandler(PadRequest req_p, int me, int *killed_p, uint32_t peerip)
 {
-static
-StreamPeerRec	peer = {0, 0};
-
 int        		chnl = me;
 int        		n;
 PadCommand 		cmd;
@@ -138,16 +129,7 @@ int32_t			err  = 0;
 				printf("padProtoHandler: STRM command\n");
 			}
 #endif
-			if ( ! peer.ip ) {
-				peer.ip   = peerip;
-				peer.port = ntohs(((PadStrmCommand)cmd)->port);
-			}
-			/* can only stream to one peer */
-			if ( peer.ip != peerip || peer.port != ntohs(((PadStrmCommand)cmd)->port) ) {
-				err = -EADDRINUSE;
-			} else {
-				err = padStreamStart(req_p, (PadStrmCommand)cmd, me, peer.ip);
-			}
+			err = padStreamStart(req_p, (PadStrmCommand)cmd, me, peerip);
 			break;
 
 		case PADCMD_SPET:
@@ -156,30 +138,11 @@ int32_t			err  = 0;
 				printf("padProtoHandler: SPET command\n");
 			}
 #endif
-			if ( ! peer.ip ) {
-				err = -ENOTCONN;
-			} else if ( peer.ip != peerip ) {
-				err = -EADDRINUSE;
-			} else {
-				err = padStreamPet(req_p);
-			}
+			err = padStreamPet(req_p, peerip);
 			break;
 
 		case PADCMD_STOP:
-			if ( !peer.ip ) {
-				/* not running */
-				err = -ENOTCONN;
-			} else {
-				if ( peerip != peer.ip ) {
-					err = -EACCES;
-				} else {
-					err = padStreamStop();
-					if ( !err ) {
-						peer.ip   = 0;
-						peer.port = 0;
-					}
-				}
-			}
+			err = padStreamStop(peerip);
 #ifdef DEBUG
 			if ( padProtoDebug & DEBUG_PROTOHDL ) {
 				printf("padProtoHandler: STOP command (err = %"PRIi32")\n", err);
@@ -188,15 +151,8 @@ int32_t			err  = 0;
 			break;	
 
 		case PADCMD_SIM:
-			if ( ! peer.ip ) {
-				err = -ENOTCONN;
-			} else if ( peer.ip != peerip ) {
-				err = -EADDRINUSE;
-			} else {
-				/* update timestamps and produce simulated data */
-				padStreamPet(req_p);
-				err = padStreamSim( (PadSimCommand) cmd);
-			}
+			if ( ! (err = padStreamPet(req_p, peerip)) )
+				err = padStreamSim( (PadSimCommand) cmd, peerip);
 #ifdef DEBUG
 			if ( padProtoDebug & DEBUG_PROTOHDL ) {
 				printf("padProtoHandler: SIM command\n");

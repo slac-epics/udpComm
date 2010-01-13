@@ -1,3 +1,16 @@
+ 20100113 (T.S.)
+ - src/padProto.c, src/padStream.c, src/padStream.h:
+   moved stream connection state handling into the padStream module and
+   added a 'timeout' feature so that a stream that is not 'petted' or
+   re-'started' within padStreamTimeoutSecs seconds is forcefully stopped.
+ - src/padStream.c: BUGFIX: ensure proper alignment of 'replyPacket'.
+ - src/padStream.c: padStreamStart() resets connection state to 'unconnected'
+   if start_stop_callback() returns nonzero and passes this return code
+   to caller.
+ - src/padStream.c: padStreamStart(), padStreamStop() - moved execution
+   of start_stop_callback() into mutex-protected section.
+ - src/padStream.c: padStreamStop() - reset/clear connection regardless
+   of result returned by start_stop_callback().
  20100112 (T.S.)
  - src/padProto.c: let 'padRequest' use a RBUF instead of our own stack
    memory so that we can use udpCommSendPkt() (avoiding a copy operation).

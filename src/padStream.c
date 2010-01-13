@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
+/* $Id: padStream.c,v 1.2 2009/12/15 23:28:39 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #include <netinet/in.h> /* for ntohs & friends */
 
@@ -21,11 +22,22 @@
 
 int padStreamDebug = 0;
 
+time_t padStreamTimeoutSecs = 60;
+
+time_t padStreamPetTime;
+
 /* Data stream implementation. This could all be done over the
  * udpSock abstraction but less efficiently since we would have
  * to copy the PAD fifo to memory first instead of copying the
  * PAD fifo to the lan9118 chip directly...
  */
+
+typedef struct StreamPeerRec_ {
+	uint32_t  ip;
+	uint16_t  port;
+} StreamPeerRec, *StreamPeer;
+
+static StreamPeerRec peer = { 0, 0 };
 
 
 /* The padProtoHandler and the thread sending the data
@@ -39,7 +51,7 @@ static rtems_id mutex = 0;
 #define UNLOCK() \
 	assert( RTEMS_SUCCESSFUL == rtems_semaphore_release(mutex) )
 
-static LanIpPacketRec replyPacket = {{{{{0}}}}};
+static LanIpPacketRec replyPacket __attribute__((aligned(4))) = {{{{{0}}}}};
 static int            nsamples; /* keep value around (lazyness) */
 
 static IpBscIf intrf;
@@ -83,9 +95,12 @@ padStreamCleanup()
 static void
 dopet(PadRequest req, PadReply rply)
 {
+struct timeval now;
 	rply->timestampHi = req->timestampHi;
 	rply->timestampLo = req->timestampLo;
 	rply->xid         = req->xid;
+	gettimeofday(&now, 0);
+	padStreamPetTime = now.tv_sec;
 }
 
 int
@@ -93,11 +108,13 @@ padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip)
 {
 PadReply        rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
 int             len;
+int             rval;
 
 
 	if ( !intrf )
 		return -ENODEV; /* stream has not been initialized yet */
-	
+
+
 	if ( (nsamples = ntohl(scmd->nsamples)) > 720/4  ) {
 		/* doesn't fit in one packet */
 		return -EINVAL;
@@ -105,6 +122,17 @@ int             len;
 
 	LOCK();
 
+		if ( ! peer.ip ) {
+				peer.ip   = hostip;
+				peer.port = ntohs(scmd->port);
+		} else {
+			/* can only stream to one peer */
+			if ( peer.ip != hostip || peer.port != ntohs(scmd->port) ) {
+				UNLOCK();
+				return -EADDRINUSE;
+			}
+		}
+	
 		if ( !isup ) {
 			/* Avoid ARP lookup, don't provide destination IP yet */
 			udpSockHdrsInitFromIf(intrf, &lpkt_udp_hdrs(&replyPacket), 0, ntohs(scmd->port), ntohs(scmd->port), 0); 	
@@ -129,22 +157,36 @@ int             len;
 
 		dopet(req, rply);
 
+
+		rval =  start_stop_cb ? start_stop_cb(1, cbarg) : 0;
+
+		if ( rval ) {
+			isup      = 0;
+			peer.ip   = 0;
+			peer.port = 0;
+		}
+
 	UNLOCK();
 
-	if ( start_stop_cb )
-		return start_stop_cb(1, cbarg);
-
-	return 0;
+	return rval;
 }
 
 int
-padStreamPet(PadRequest req)
+padStreamPet(PadRequest req, uint32_t hostip)
 {
 PadReply  rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
+int       err;
 	LOCK();
-		dopet(req, rply);
+		if ( ! peer.ip ) {
+			err = -ENOTCONN;
+		} else if ( peer.ip != hostip ) {
+			err = -EADDRINUSE;
+		} else {
+			err = 0;
+			dopet(req, rply);
+		}
 	UNLOCK();
-	return 0;
+	return err;
 }
 
 
@@ -266,6 +308,7 @@ DrvLan9118_tps plan = lanIpBscIfGetDrv(intrf);
 int            len;
 void          *data_p;
 uint32_t       now;
+struct timeval now_tv;
 
 	if ( idx != 0 )
 		return -ENOTSUP;	/* not supported yet */
@@ -281,6 +324,13 @@ uint32_t       now;
 	if ( !isup ) {
 		UNLOCK();
 		return -EAGAIN;
+	}
+
+	gettimeofday(&now_tv, 0);
+	if ( (now_tv.tv_sec - padStreamPetTime) > padStreamTimeoutSecs ) {
+		padStreamStop(0);
+		UNLOCK();
+		return -ETIMEDOUT;
 	}
 
 	/* just look in the cache - we rely on the RX daemon refreshing it */
@@ -340,42 +390,66 @@ padStreamTest()
 }
 
 int
-padStreamSim(PadSimCommand scmd)
+padStreamSim(PadSimCommand scmd, uint32_t hostip)
 {
 int dosend = 1;
+int err;
 
 	if ( !intrf )
 		return -ENODEV; /* stream has not been initialized yet */
 
 	if ( scmd ) {
 		LOCK();
-			strips.a = ntohl(scmd->a);
-			strips.b = ntohl(scmd->b);
-			strips.c = ntohl(scmd->c);
-			strips.d = ntohl(scmd->d);
+			if ( ! peer.ip ) {
+				err = -ENOTCONN;
+			} else if ( hostip && peer.ip != hostip ) {
+				err = -EADDRINUSE;
+			} else {
+				strips.a = ntohl(scmd->a);
+				strips.b = ntohl(scmd->b);
+				strips.c = ntohl(scmd->c);
+				strips.d = ntohl(scmd->d);
+				err = 0;
+			}
 		UNLOCK();
+
+		if ( err )
+			return err;
+
 		dosend =  ! (PADCMD_SIM_FLAG_NOSEND & scmd->flags );
 	}
-
 
 	return  dosend ? padStreamSend(padStreamSim_getdata, 0, 0, &strips) : 0;
 }
 
 int
-padStreamStop(void)
+padStreamStop(uint32_t hostip)
 {
 int rval = 0;
 
 	if ( !intrf )
 		return -ENODEV; /* stream has not been initialized yet */
 
-	if ( start_stop_cb )
-		rval = start_stop_cb(0, cbarg);
+	LOCK();
+	if ( isup ) {
+		if ( !peer.ip ) {
+			/* not running */
+			rval = -ENOTCONN;
+		} else {
+			if ( hostip && hostip != peer.ip ) {
+				rval = -EACCES;
+			} else {
+				if ( start_stop_cb )
+					rval = start_stop_cb(0, cbarg);
 
-	if ( !rval ) {
-		LOCK();
-		isup = 0;
-		UNLOCK();
+				isup      = 0;
+				peer.ip   = 0;
+				peer.port = 0;
+			}
+		}
+	} else {
+		rval = -ENOTCONN;
 	}
+	UNLOCK();
 	return rval;
 }

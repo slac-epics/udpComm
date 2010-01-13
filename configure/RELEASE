@@ -36,5 +36,11 @@ BASE_MODULE_VERSION=base-R3-14-8-2-lcls5
 # =================================================================
 EPICS_BASE=$(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
 
+# =================================================================
+# The host-simulator has more features if the SDDS extension
+# is available.
+# =================================================================
+#SDDS_LIB=$(EPICS_SITE_TOP)/extensions/$(EXTENSIONS_MODULE_VERSION)/
+
 # End of file
 

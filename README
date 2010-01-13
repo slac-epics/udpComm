@@ -1,0 +1,230 @@
+Sheng.
+
+The 'udpComm' API is very similar to traditional socket programming
+but slightly simplified.
+
+The 'udpComm' API is implemented for both, communication over regular
+BSD sockets and the dedicated 'lanIpBasic' mini-stack.
+
+If you write you application using udpComm then you can later switch
+to lanIpBasic w/o modifying your app. (lanIpBasic with multicast has
+not been released yet but udpComm over BSD is available and supports
+multicasting [udpComm + lanIpBasic without MC is currently used in
+production].)
+
+Also, 'udpComm' provides buffer management (always for RX, optional for TX)
+so that copying from/to a user area can be avoided.
+
+The API is described in
+
+/afs/slac/g/lcls/epics/modules/fcom/devl/src/udpComm/udpComm.h
+
+To use udpComm you need the following:
+
+1) Use rtems-4-9-1-p4 (available under /afs/slac/package/rtems/4.9.1/)
+   AFAIK, Ernest is copying this release over to the 'builder'.
+
+2) load the module (it's only a .o file but that doesn't matter)
+
+   
+/afs/slac/g/lcls/epics/modules/fcom/devl/src/O.RTEMS-beatnik/udpCommBSD.o
+
+3) Your application must
+
+#include <udpComm.h>
+
+and make sure the header from the path above (and not an older version)
+is used.
+
+API DESCRIPTION
+---------------
+
+NOTE: IP addresses are always 32-bit IPV4 addresses in *network*-byte order
+      whereas port numbers are in host-byte order.
+
+SOCKET CREATION
+---------------
+
+You must create a 'socket' (in quotes because the referred object is
+not a true BSD socket when using lanIpBasic) specifying its UDP port
+number (in host-byte order).
+
+  sd = udpCommCreate( 5555 );
+
+JOIN MC GROUP
+-------------
+
+Join a MC group (note that the group address is in network byte order)
+
+  udpCommJoinMcast( sd, inet_addr("239.255.3.3") );
+
+(zero return value is success)
+
+PACKET RECEPTION
+----------------
+
+Receive/pend for data (a 'udpCommRecvFrom()' variant is also available);
+NULL result indicates timeout.
+
+  pkt = udpCommRecv( sd, 20000 /*ms*/ );
+
+Find UDP payload in opaque 'packet' (note: it is very important
+not to make any assumptions as to the packet layout but to always
+use udpCommBufPtr()):
+
+  payld = udpCommBufPtr( pkt );
+
+  /* crunch data */
+  printf("Got a string: %s\n", payld);
+
+MUST release buffer when done!
+
+  udpCommFreePacket( pkt );
+
+LEAVE MC GROUP
+--------------
+
+  udpCommLeaveMcast( sd, inet_addr("239.255.3.3") );
+
+(zero result is success)
+
+PACKET TRANSMISSION
+-------------------
+
+'connect' socket to 'peer' (which may be a MC group). This is
+of course not a true 'connection in the TCP sense but merely
+stores the peer's address so that it doesn't have to be
+specified with every 'send' operation.
+
+NOTE: the semantics of udpCommConnect() DIFFER from BSD semantics
+      if the 'peer' address is a MC group:
+      Connected BSD UDP sockets ONLY accept incoming traffic with
+      a source IP address equal to the connected peer's. This means
+      that a BSD UDP socket which is connected to a MC group will NEVER
+      see any incoming traffic (because a packet is never sent *by* a
+      MC group).
+
+      However, a udpComm socket, when connected to a MC address
+      uses the peer information only for sending and will receive
+      traffic from any source (IP or port). This applies only if
+      the peer IP is a MC group. In other cases (peer is ordinary
+      IP unicast or LAN broadcast address) then BSD semantics
+      are observed.
+      
+Note that IP addresses are in network- port numbers in host-
+byte order.
+
+  udpCommConnect( sd, inet_addr("239.255.3.3"), 6666);
+
+(zero result is success)
+
+Send data to connected peer (user data is copied into network
+stack).
+
+  udpCommSend( sd, "Hello\n", 7 );
+
+(positive result is success [# bytes handed to stack])
+
+Alternatively, you can allocate a buffer, fill-in your
+data and hand the buffer to the stack (who then 'owns' it
+-- you don't release such a buffer ever):
+
+   pkt = udpCommAllocPacket();
+
+   sprintf( udpCommBufPtr(pkt), "Hello\n" );
+
+   udpCommSendPkt( sd, pkt, strlen("Hello\n") + 1 );
+
+(positive result [# of bytes handed to stack] is success)
+
+For some applications this interface allows for avoiding
+an extra copy step since lanIpBasic can directly DMA out
+of the packet buffer.
+
+SOCKET DESTRUCTION
+------------------
+
+   udpCommClose( sd );
+
+ERROR HANDLING
+--------------
+
+zero or in some cases a positive return value indicates
+SUCCESS. Errors are flagged by negative return values.
+An error status is encoded as a 'negative errno', i.e.,
+you can get some ASCII info:
+
+   int status = udpCommSomeCall( x, y, z );
+
+   if ( status < 0 ) {
+      fprintf( stderr, "Some call failed: %s\n", strerror( - status ) );
+   }
+
+MULTIPLE INTERFACES
+-------------------
+
+Setup
+- - -
+
+Make sure you have 'miscUtils.obj' loaded.
+
+1) Attach 2nd NIC to BSD stack:
+
+   ifattach( "mve2", rtems_mve_attach, 0 );
+
+2) Configure 2nd NIC
+
+   ifconf( "mve2", "192.168.0.30", "255.255.255.0" );
+
+Selection of Interface for Multicast
+------------------------------------
+
+If you have multiple interfaces then some additional
+steps are necessary to ensure that MC traffic goes
+across the desired interface.
+
+NOTE: This is only required for udpComm over BSD sockets
+(since the BSD stack may have multiple NICs attached).
+
+When using lanIpBasic then the lanIpBasic stack is
+totally decoupled from BSD networking and therefore
+udpComm implicitly 'knows' which interface to use
+(the one attached to lanIpBasic).
+
+However, the facilities described below are also
+supported in combination with lanIpBasic to ensure
+API compatibility (and to leave it open to add support
+for multiple NICs to lanIpBasic).
+
+Transmission
+- - - - - - -
+
+Assume you 2nd NIC has
+been configured with '192.168.0.30':
+
+   udpCommSetIfMcast( sd, inet_addr("192.168.0.30") );
+
+makes sure all MC traffic sent from 'sd' goes over the
+NIC with '192.168.0.30'.
+
+(zero result is success)
+
+Reception
+- - - - -
+
+You can set the external variable 'udpCommMcastIfAddr'
+to the IP address of the NIC that should receive MC
+traffic. You must set this *before* calling udpCommJoinMcast().
+
+NOTE: this is a kludge that was added as a 'quick-n-dirty'
+solution. However, the scenario where udpComm over BSD in
+combination with multiple NICs is used was deemed rather rare.
+(Since usually you would use a single NIC in combination with BSD
+-- a second one really doesn't buy you much.)
+
+  udpCommMcastIfAddr = inet_addr("192.168.0.30");
+  udpSockJoinMcast( sd, inet_addr("239.255.3.3") );
+
+HTH -- Don't hesitate to contact me if you need more information
+
+-- Till

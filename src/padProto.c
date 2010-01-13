@@ -284,18 +284,20 @@ uint32_t	peerip;
 int
 padRequest(int sd, int who, int type, uint32_t xid, uint32_t tsHi, uint32_t tsLo, void *cmdData, UdpCommPkt *wantReply, int timeout_ms)
 {
-struct {
-	PadRequestRec		req;
-	uint8_t				data[sizeof(PadStrmCommandRec) + 10];
-}           buf;
-PadRequest  req = &buf.req;
+PadRequest  req;
 PadReply    rep;
-PadCommand	cmd = (PadCommand)req->data;
+PadCommand	cmd;
 int			rval;
-UdpCommPkt  p = 0;
+UdpCommPkt  p;
 
 	if ( who > 50 )
 		return -EINVAL;
+
+	if ( 0 == ( p = udpCommAllocPacket() ) )
+		return -ENOMEM;
+
+	req          = udpCommBufPtr( p );
+	cmd          = (PadCommand)req->data;
 
 	req->version = PADPROTO_VERSION1;
 	req->nCmds   = who < 0 ? PADREQ_BCST : -who;
@@ -318,10 +320,12 @@ UdpCommPkt  p = 0;
 			break;
 	}
 
-	if ( (rval = udpCommSend(sd, req, sizeof(*req) + req->cmdSize)) < 0 ) {
+	if ( (rval = udpCommSendPkt(sd, p, sizeof(*req) + req->cmdSize)) < 0 ) {
 		fprintf(stderr,"padRequest: send failed -- %s\n",strerror(-rval));
 		return rval;
 	}
+
+	p = 0;
 
 	if ( !(type & PADCMD_QUIET) ) {
 		int retry = RETRIES;

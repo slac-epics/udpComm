@@ -1,3 +1,16 @@
+ 20100112 (T.S.)
+ - src/padProto.c: let 'padRequest' use a RBUF instead of our own stack
+   memory so that we can use udpCommSendPkt() (avoiding a copy operation).
+ - src/udpComm.c, src/udpComm.h, src/udpCommBSD.c:
+   CHANGED udpCommConnect() semantics DEVIATING FROM BSD 'connect()'.
+   If the peer address is an IPv4 multicast-address then 'udpCommConnect()'
+   just 'memorizes' the peer's address/port for sending. However, when
+   receiving packets they are *not* filtered against the peer address/port
+   (this would never succeed since the sender is never the connected MC
+   address).
+   Added extra argument to udpSockConnect() allowing the user to choose
+   the desired semantics. udpCommConnect() chooses the 'multicast-passthrough'
+   option.
  20091215 (T.S.)
  - configure/CONFIG_SITE, src/Makefile: define CROSS_COMPILER_TARGET_ARCHS
    in the former file.

@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.2 2009/12/15 23:28:59 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -8,6 +8,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <limits.h>
+#include <stdio.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -17,6 +19,8 @@
 
 #define DO_ALIGN(x,a) (((uintptr_t)(x) + ((a)-1)) & ~((a)-1))
 #define BUFALIGN(x)   DO_ALIGN(x,UDPCOMM_ALIGNMENT)
+
+#define ISMCAST(a) (((a) & 0xf0000000) == 0xe0000000)
 
 /* maintain same alignment of data-area 
  * which is seen when using lanIpBasic.
@@ -31,6 +35,19 @@ typedef struct {
 	int             rx_sd;
 	void            *raw_mem;
 } __attribute__((may_alias)) UdpCommBSDPkt;
+
+#ifndef OPEN_MAX
+/* Some systems do not define this. Use
+ * a reasonable value - the udpSockCreate()
+ * routine checks against overflow.
+ */
+#define OPEN_MAX 20
+#endif
+
+static struct {
+	uint32_t dipaddr;
+	uint16_t dport;
+} sdaux[OPEN_MAX] = { {0} };
 
 UdpCommPkt
 udpCommAllocPacket()
@@ -57,6 +74,14 @@ struct sockaddr_in me;
 
 	if ( sd < 0 )
 		return sd;
+
+	if ( sd >= OPEN_MAX ) {
+		fprintf(stderr,"INTERNAL ERROR sd > OPEN_MAX\n");
+		close(sd);
+		return -1;
+	}
+
+	sdaux[sd].dipaddr = 0;
 
 	memset(&me, 0, sizeof(me));
 	me.sin_family = AF_INET;
@@ -130,18 +155,40 @@ int
 udpCommConnect(int sd, uint32_t diaddr, int port)
 {
 struct sockaddr_in they;
-	
+
 	memset(&they, 0, sizeof(they));
-	they.sin_family        = AF_INET;
-	they.sin_addr.s_addr   = diaddr;
-	they.sin_port          = htons(port);
+
+	/* Do not connect to a multicast destination
+	 * but remember destination in sdaux.
+	 */
+	if ( ISMCAST(ntohl(diaddr)) ) {
+		sdaux[sd].dipaddr = diaddr;
+		sdaux[sd].dport   = htons(port);
+		they.sin_family   = AF_UNSPEC;
+	} else {
+		sdaux[sd].dipaddr      = 0;
+		they.sin_family        = AF_INET;
+		they.sin_addr.s_addr   = diaddr ? diaddr : INADDR_ANY;
+		they.sin_port          = htons(port);
+	}
 	return connect(sd, (struct sockaddr*)&they, sizeof(they));
 }
 
 int
 udpCommSend(int sd, void *buf, int len)
 {
-	return send(sd, buf, len, 0);
+	if ( sdaux[sd].dipaddr ) {
+		union {
+			struct sockaddr_in ia;
+			struct sockaddr    sa;
+		} dst;
+		dst.ia.sin_family      = AF_INET;
+		dst.ia.sin_addr.s_addr = sdaux[sd].dipaddr;
+		dst.ia.sin_port        = sdaux[sd].dport;
+		return sendto(sd, buf, len, 0, &dst.sa, sizeof(dst.ia));
+	} else {
+		return send(sd, buf, len, 0);
+	}
 }
 
 int
@@ -150,7 +197,19 @@ udpCommSendPkt(int sd, UdpCommPkt pkt, int len)
 UdpCommBSDPkt *p = (UdpCommBSDPkt*) pkt;
 int           rval;
 
-	rval = send(sd, p->data, len, 0);
+	if ( sdaux[sd].dipaddr ) {
+		union {
+			struct sockaddr_in ia;
+			struct sockaddr    sa;
+		} dst;
+		dst.ia.sin_family      = AF_INET;
+		dst.ia.sin_addr.s_addr = sdaux[sd].dipaddr;
+		dst.ia.sin_port        = sdaux[sd].dport;
+		rval = sendto(sd, p->data, len, 0, &dst.sa, sizeof(dst.ia));
+	} else {
+		rval = send(sd, p->data, len, 0);
+	}
+
 	udpCommFreePacket(p);
 	return rval;
 }

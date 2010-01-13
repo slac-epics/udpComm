@@ -1,4 +1,4 @@
-/* $Id: udpComm.c,v 1.1.1.1 2009/12/06 16:19:03 strauman Exp $ */
+/* $Id: udpComm.c,v 1.2 2009/12/15 23:28:59 strauman Exp $ */
 
 #include <lanIpBasic.h>
 #include <netinet/in.h>
@@ -31,7 +31,7 @@ udpCommClose(int sd)
 int     
 udpCommConnect(int sd, uint32_t diaddr, int port)
 {
-	return udpSockConnect(sd, diaddr, port);
+	return udpSockConnect(sd, diaddr, port, UDPSOCK_MCPASS);
 }
 
 UdpCommPkt

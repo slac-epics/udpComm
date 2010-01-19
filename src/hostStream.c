@@ -15,6 +15,9 @@
 #include "bpmsim.h"
 #include "hostStream.h"
 
+static time_t      petTime;
+time_t             padStreamTimeoutSecs = 10;
+
 #ifdef USE_SDDS
 #include "sddsrd.h"
 #include <string.h>
@@ -26,9 +29,6 @@ static SddsFileDat sddsDat         =  0;
 static SddsPage    sddsPag         =  0;
 static int         sddsPgFst       =  0;
 static int         sddsPgLst       = -1;
-
-static time_t      petTime;
-time_t             padStreamTimeoutSecs = 10;
 
 static void
 clearNames()

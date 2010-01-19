@@ -1,4 +1,12 @@
  20100118 (T.S.)
+ - src/padStream.c, src/padStream.h:
+    o changed semantics of 'start' argument to start_stop_cb(); this
+      is now a pointer to the STRM command (start) or NULL (stop).
+    o added support for 32-bit stream data.
+    o added 'd32' argument to stream 'getdata' callback.
+    o let padStreamSim() succeed even if stream is not connected
+      provided that 'nosend' option is set.
+ 20100118 (T.S.)
  - src/padProtoHost.c:
     o updated usage info (-d flag).
     o added 32-bit stream data support.

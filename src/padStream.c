@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.2 2009/12/15 23:28:39 strauman Exp $ */
+/* $Id: padStream.c,v 1.3 2010/01/13 16:45:17 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -52,16 +52,17 @@ static rtems_id mutex = 0;
 	assert( RTEMS_SUCCESSFUL == rtems_semaphore_release(mutex) )
 
 static LanIpPacketRec replyPacket __attribute__((aligned(4))) = {{{{{0}}}}};
-static int            nsamples; /* keep value around (lazyness) */
+static int            nsamples, sampsizld; /* keep values around (lazyness) */
+#define LONGDATA (sampsizld == 2)
 
 static IpBscIf intrf;
-static int (*start_stop_cb)(int start, void *uarg) = 0;
+static PadStreamStartStopCB start_stop_cb = 0;
 static void  *cbarg = 0;
 
 static volatile int isup = 0;
 
 int
-padStreamInitialize(void *if_p, int (*cb)(int start, void *uarg), void *uarg)
+padStreamInitialize(void *if_p, PadStreamStartStopCB cb, void *uarg)
 {
 rtems_status_code sc;
 	
@@ -114,8 +115,10 @@ int             rval;
 	if ( !intrf )
 		return -ENODEV; /* stream has not been initialized yet */
 
+	nsamples  = ntohl(scmd->nsamples);
+	sampsizld = (scmd->flags & PADCMD_STRM_FLAG_32) ? 2 : 1;
 
-	if ( (nsamples = ntohl(scmd->nsamples)) > 720/4  ) {
+	if ( nsamples > (1440/4 >> sampsizld) ) {
 		/* doesn't fit in one packet */
 		return -EINVAL;
 	}
@@ -140,7 +143,7 @@ int             rval;
 			/* Add missing bits: destination IP , source port */
 			lpkt_ip(&replyPacket).dst     = hostip;
 
-			len = nsamples*sizeof(int16_t)*NCHNS + sizeof(*rply);
+			len = ((nsamples*NCHNS) << sampsizld) + sizeof(*rply);
 			/* Fill in length and IP header checksum etc */
 			udpSockHdrsSetlen(&lpkt_udp_hdrs(&replyPacket), len);
 			/* Setup Reply */
@@ -158,7 +161,7 @@ int             rval;
 		dopet(req, rply);
 
 
-		rval =  start_stop_cb ? start_stop_cb(1, cbarg) : 0;
+		rval =  start_stop_cb ? start_stop_cb(scmd, cbarg) : 0;
 
 		if ( rval ) {
 			isup      = 0;
@@ -206,8 +209,17 @@ swap(int16_t x)
 	return x<<8 | ((uint16_t)x)>>8;
 }
 
+static inline int32_t
+swapl(int32_t x)
+{
+uint32_t v = (uint32_t)x;
+	v = ((v & 0x00ff00ff) << 8) | ((v>>8) & 0x00ff00ff);
+	v = (v >> 16) | (v<<16);
+	return (int32_t) v;
+}
+
 static void *
-streamTest(void *packetBuffer,
+streamTest16(void *packetBuffer,
 			int idx,
 			int nsamples,
 			int little_endian,
@@ -254,36 +266,131 @@ int i;
 	return buf;
 }
 
-static PadStripSimValRec strips;
-
-void *
-padStreamSim_getdata(void *packetBuffer,
+static void *
+streamTest32(void *packetBuffer,
 			int idx,
 			int nsamples,
 			int little_endian,
 			int column_major,
 			void *uarg)
 {
-int16_t		*buf = packetBuffer;
+int32_t *buf = packetBuffer;
+int i;
+	if ( !little_endian != bigEndian() ) {
+		if ( column_major ) {
+			for (i=0; i<nsamples; i++) {
+				buf[i*4+0] = swapl(i+0x00 + (idx<<8));
+				buf[i*4+1] = swapl(i+0x10 + (idx<<8));
+				buf[i*4+2] = swapl(i+0x20 + (idx<<8));
+				buf[i*4+3] = swapl(i+0x30 + (idx<<8));
+			}
+		} else {
+			for (i=0; i<nsamples; i++) {
+				buf[i+0*nsamples] = swapl(i+0x00 + (idx<<8));
+				buf[i+1*nsamples] = swapl(i+0x10 + (idx<<8));
+				buf[i+2*nsamples] = swapl(i+0x20 + (idx<<8));
+				buf[i+3*nsamples] = swapl(i+0x30 + (idx<<8));
+			}
+		}
+	} else {
+		#define swapl(x)	(x)
+		if ( column_major ) {
+			for (i=0; i<nsamples*NCHNS; i+=4) {
+				buf[i+0] = swapl(i+0x00 + (idx<<8));
+				buf[i+1] = swapl(i+0x10 + (idx<<8));
+				buf[i+2] = swapl(i+0x20 + (idx<<8));
+				buf[i+3] = swapl(i+0x30 + (idx<<8));
+			}
+		} else {
+			for (i=0; i<nsamples; i++) {
+				buf[i+0*nsamples] = swapl(i+0x00 + (idx<<8));
+				buf[i+1*nsamples] = swapl(i+0x10 + (idx<<8));
+				buf[i+2*nsamples] = swapl(i+0x20 + (idx<<8));
+				buf[i+3*nsamples] = swapl(i+0x30 + (idx<<8));
+			}
+		}
+		#undef swapl
+	}
+	return buf;
+}
+
+static void *
+streamTest(void *packetBuffer,
+			int idx,
+			int nsamples,
+			int d32,
+			int little_endian,
+			int column_major,
+			void *uarg)
+{
+	return d32 ? streamTest32(packetBuffer, idx, nsamples, little_endian, column_major, uarg) : 
+	             streamTest16(packetBuffer, idx, nsamples, little_endian, column_major, uarg);
+}
+
+
+static PadStripSimValRec strips;
+
+void *
+padStreamSim_getdata(void *packetBuffer,
+			int idx,
+			int nsamples,
+			int d32,
+			int little_endian,
+			int column_major,
+			void *uarg)
+{
+int16_t		*buf  = packetBuffer;
+int32_t     *bufl = packetBuffer;
+int32_t      atmp, btmp, ctmp, dtmp;
 PadStripSimVal ini  = uarg;
 int         swp;
+int         i;
 static unsigned long noise = 1;
 
 	swp    = ( bigEndian() != !little_endian );
 
-	if ( column_major ) {
-		iir2_bpmsim(buf++, nsamples, ini->a, 0,  &noise, swp, NCHNS);
-		iir2_bpmsim(buf++, nsamples, ini->b, 0,  &noise, swp, NCHNS);
-		iir2_bpmsim(buf++, nsamples, ini->c, 0,  &noise, swp, NCHNS);
-		iir2_bpmsim(buf++, nsamples, ini->d, 0,  &noise, swp, NCHNS);
+	if ( d32 ) {
+		if ( swp ) {
+			atmp = swapl(ini->a);
+			btmp = swapl(ini->b);
+			ctmp = swapl(ini->c);
+			dtmp = swapl(ini->d);
+		} else {
+			atmp = ini->a;
+			btmp = ini->b;
+			ctmp = ini->c;
+			dtmp = ini->d;
+		}
+		if ( column_major ) {
+			for ( i=0; i<nsamples; i++ ) {
+				bufl[i + 0] = atmp;
+				bufl[i + 1] = btmp;
+				bufl[i + 2] = ctmp;
+				bufl[i + 3] = dtmp;
+			}
+		} else {
+			for ( i=0; i<nsamples; i++ ) {
+				bufl[i + 0*nsamples] = atmp;
+				bufl[i + 1*nsamples] = btmp;
+				bufl[i + 2*nsamples] = ctmp;
+				bufl[i + 3*nsamples] = dtmp;
+			}
+		}
 	} else {
-		iir2_bpmsim(buf, nsamples, ini->a, 0,  &noise, swp, 1);
-		buf += nsamples;
-		iir2_bpmsim(buf, nsamples, ini->b, 0,  &noise, swp, 1);
-		buf += nsamples;
-		iir2_bpmsim(buf, nsamples, ini->c, 0,  &noise, swp, 1);
-		buf += nsamples;
-		iir2_bpmsim(buf, nsamples, ini->d, 0,  &noise, swp, 1);
+		if ( column_major ) {
+			iir2_bpmsim(buf++, nsamples, ini->a, 0,  &noise, swp, NCHNS);
+			iir2_bpmsim(buf++, nsamples, ini->b, 0,  &noise, swp, NCHNS);
+			iir2_bpmsim(buf++, nsamples, ini->c, 0,  &noise, swp, NCHNS);
+			iir2_bpmsim(buf++, nsamples, ini->d, 0,  &noise, swp, NCHNS);
+		} else {
+			iir2_bpmsim(buf, nsamples, ini->a, 0,  &noise, swp, 1);
+			buf += nsamples;
+			iir2_bpmsim(buf, nsamples, ini->b, 0,  &noise, swp, 1);
+			buf += nsamples;
+			iir2_bpmsim(buf, nsamples, ini->c, 0,  &noise, swp, 1);
+			buf += nsamples;
+			iir2_bpmsim(buf, nsamples, ini->d, 0,  &noise, swp, 1);
+		}
 	}
 
 	return packetBuffer;
@@ -300,7 +407,7 @@ extern uint32_t drvLan9118RxIntBase;
 #endif
 
 int
-padStreamSend(void * (*getdata)(void *packBuffer, int idx, int nsamples, int endianLittle, int colMajor, void *uarg), int type, int idx, void *uarg)
+padStreamSend(void * (*getdata)(void *packBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg), int type, int idx, void *uarg)
 {
 int            rval = 0;
 PadReply       rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
@@ -361,6 +468,7 @@ struct timeval now_tv;
 					&rply->data,
 					idx,
 					nsamples, 
+					rply->strm_cmd_flags & PADCMD_STRM_FLAG_32,
 					rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
 					rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM,
 					uarg)) ) {
@@ -393,30 +501,33 @@ int
 padStreamSim(PadSimCommand scmd, uint32_t hostip)
 {
 int dosend = 1;
-int err;
+int err    = 0;
 
 	if ( !intrf )
 		return -ENODEV; /* stream has not been initialized yet */
 
 	if ( scmd ) {
+		dosend =  ! (PADCMD_SIM_FLAG_NOSEND & scmd->flags );
+
 		LOCK();
-			if ( ! peer.ip ) {
-				err = -ENOTCONN;
-			} else if ( hostip && peer.ip != hostip ) {
-				err = -EADDRINUSE;
-			} else {
+			if ( dosend ) {
+				if ( ! peer.ip ) {
+					err = -ENOTCONN;
+				} else if ( hostip && peer.ip != hostip ) {
+					err = -EADDRINUSE;
+				}
+			}
+			if ( !err ) {
 				strips.a = ntohl(scmd->a);
 				strips.b = ntohl(scmd->b);
 				strips.c = ntohl(scmd->c);
 				strips.d = ntohl(scmd->d);
-				err = 0;
 			}
 		UNLOCK();
 
 		if ( err )
 			return err;
 
-		dosend =  ! (PADCMD_SIM_FLAG_NOSEND & scmd->flags );
 	}
 
 	return  dosend ? padStreamSend(padStreamSim_getdata, 0, 0, &strips) : 0;

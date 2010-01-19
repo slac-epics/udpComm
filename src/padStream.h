@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.2 2009/12/15 23:28:39 strauman Exp $ */
+/* $Id: padStream.h,v 1.3 2010/01/13 16:45:18 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -17,15 +17,16 @@ extern "C" {
 
 /* Setup everything for stream processing.
  * The 'cb' callback is executed (padUdpHandler task context)
- * with a nonzero 'start' argument when the stream is
- * started and again with a nonzero argument when the stream
+ * with a non-NULL 'scmd' argument when the stream is
+ * started and again with a NULL argument when the stream
  * is stopped (enable/disable data source).
  * The callback should return 0 on success, nonzero if the
  * stream cannot be started or stopped.
  */
+typedef int (*PadStreamStartStopCB)(PadStrmCommand scmd, void *uarg);
 
 int
-padStreamInitialize(void *if_p, int (*cb)(int start, void *uarg), void *uarg);
+padStreamInitialize(void *if_p, PadStreamStartStopCB cb, void *uarg);
 
 /* cleanup (for module unloading) */
 int
@@ -46,7 +47,7 @@ int
 padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip);
 
 int
-padStreamSend(void * (*getdata)(void *packBuffer, int idx, int nsamples, int endianLittle, int colMajor, void *uarg), int type, int idx, void *uarg);
+padStreamSend(void * (*getdata)(void *packBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg), int type, int idx, void *uarg);
 
 /* execute 'padStreamSend' with test data */
 int
@@ -77,6 +78,7 @@ void *
 padStreamSim_getdata(void *packetBuffer,
 			int idx,
 			int nsamples,
+			int d32,
 			int little_endian,
 			int column_major,
 			void *uarg);

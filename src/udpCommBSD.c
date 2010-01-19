@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.2 2009/12/15 23:28:59 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.3 2010/01/13 01:23:04 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -15,6 +15,8 @@
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netinet/in.h>
+
+#define ERRNONEG (errno ? -errno : -1)
 
 
 #define DO_ALIGN(x,a) (((uintptr_t)(x) + ((a)-1)) & ~((a)-1))
@@ -71,9 +73,10 @@ udpCommSocket(int port)
 {
 int                sd = socket(AF_INET, SOCK_DGRAM, 0);
 struct sockaddr_in me;
+int                err, yes;
 
 	if ( sd < 0 )
-		return sd;
+		return ERRNONEG;
 
 	if ( sd >= OPEN_MAX ) {
 		fprintf(stderr,"INTERNAL ERROR sd > OPEN_MAX\n");
@@ -87,9 +90,17 @@ struct sockaddr_in me;
 	me.sin_family = AF_INET;
 	me.sin_port   = htons(port);
 
-	if ( bind(sd, (void*)&me, sizeof(me)) ) {
+	yes = 1;
+	if ( setsockopt(sd, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes)) ) {
+		err = ERRNONEG;
 		close(sd);
-		return -errno;
+		return err;
+	}
+
+	if ( bind(sd, (void*)&me, sizeof(me)) ) {
+		err = ERRNONEG;
+		close(sd);
+		return err;
 	}
 
 	return sd;
@@ -170,13 +181,15 @@ struct sockaddr_in they;
 		they.sin_family        = AF_INET;
 		they.sin_addr.s_addr   = diaddr ? diaddr : INADDR_ANY;
 		they.sin_port          = htons(port);
+
 	}
-	return connect(sd, (struct sockaddr*)&they, sizeof(they));
+	return connect(sd, (struct sockaddr*)&they, sizeof(they)) ? ERRNONEG : 0;
 }
 
 int
 udpCommSend(int sd, void *buf, int len)
 {
+int rval;
 	if ( sdaux[sd].dipaddr ) {
 		union {
 			struct sockaddr_in ia;
@@ -185,10 +198,11 @@ udpCommSend(int sd, void *buf, int len)
 		dst.ia.sin_family      = AF_INET;
 		dst.ia.sin_addr.s_addr = sdaux[sd].dipaddr;
 		dst.ia.sin_port        = sdaux[sd].dport;
-		return sendto(sd, buf, len, 0, &dst.sa, sizeof(dst.ia));
+		rval = sendto(sd, buf, len, 0, &dst.sa, sizeof(dst.ia));
 	} else {
-		return send(sd, buf, len, 0);
+		rval = send(sd, buf, len, 0);
 	}
+	return rval < 0 ? (ERRNONEG) : rval ;
 }
 
 int
@@ -211,7 +225,7 @@ int           rval;
 	}
 
 	udpCommFreePacket(p);
-	return rval;
+	return rval < 0 ? (ERRNONEG) : rval;
 }
 
 int
@@ -230,7 +244,7 @@ union {
 	dst.sin.sin_port        = htons(port);
 	rval = sendto(sd, p->data, len, 0, &dst.sa, sizeof(dst.sin));
 	udpCommFreePacket(p);
-	return rval;
+	return rval < 0 ? (ERRNONEG) : rval;
 }
 
 
@@ -260,7 +274,7 @@ struct ip_mreq  ipm;
 #endif
 
 	if ( setsockopt(sd, IPPROTO_IP, cmd, &ipm, sizeof(ipm)) ) {
-		return -errno;
+		return ERRNONEG;
 	}
 
 	return 0;
@@ -294,7 +308,7 @@ struct in_addr  arg;
 	mcifa.s_addr = ifipaddr;
 
 	if ( setsockopt(sd, IPPROTO_IP, IP_MULTICAST_IF, &mcifa, sizeof(mcifa)) ) {
-		return -errno;
+		return ERRNONEG;
 	}
 
 	return 0;
@@ -303,7 +317,7 @@ struct in_addr  arg;
 int
 udpCommClose(int sd)
 {
-	return close(sd);
+	return close(sd) ? ERRNONEG : 0;
 }
 
 void *

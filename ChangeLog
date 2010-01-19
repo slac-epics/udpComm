@@ -1,4 +1,9 @@
  20100118 (T.S.)
+ - src/padProtoHost.c:
+    o updated usage info (-d flag).
+    o added 32-bit stream data support.
+    o added option to set stream timeout.
+ 20100118 (T.S.)
  - src/padProto.c:
     o ignore return value of padStreamPet() (PADCMD_SIM command).
  20100118 (T.S.)

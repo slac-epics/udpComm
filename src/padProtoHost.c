@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.1.1.1 2009/12/06 16:19:02 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.2 2009/12/15 23:27:01 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -63,7 +63,7 @@ union {
 void
 usage(char *nm)
 {
-	fprintf(stderr,"Usage: %s [-bhvec] [-C channel] [-l port] [-n nsamples] [-s srvr_port] "
+	fprintf(stderr,"Usage: %s [-bhvec] [-d debug_facility] [-C channel] [-l port] [-n nsamples] [-s srvr_port] [-t <stream_timeout_secs>] "
 #ifdef USE_SDDS
 	"[-S sdds_file:col,col,col,col] [-p start:end] "
 #endif
@@ -71,6 +71,7 @@ usage(char *nm)
 	fprintf(stderr,"          -b bcast to all channels\n");
 	fprintf(stderr,"          -h print this help\n");
 	fprintf(stderr,"          -v be verbose\n");
+	fprintf(stderr,"          -d <facility> enable padProto debug messages (ORed bitset)\n");
 	fprintf(stderr,"          -e request wrong endianness (for testing; STRM command only)\n");
 	fprintf(stderr,"          -c request col-major data   (for testing; STRM command only)\n");
 	fprintf(stderr,"          -n <nsamples> request <nsamples> (STRM command only)\n");
@@ -126,8 +127,13 @@ UdpCommPkt        p;
 PadReply          rply;
 int16_t           err;
 int               i;
+int               d32;
 int               sz;
-int16_t           *buf;
+union {
+	int16_t *s;
+	int32_t *l;
+	void    *r;
+}                 buf;
 
 	while ( (p = udpCommRecv(sd, 1000000000)) ) {
 		rply = (PadReply)p;
@@ -147,12 +153,15 @@ int16_t           *buf;
 			break;
 		}
 
+
+		d32 = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? 1 : 0;
+
 		sz = ntohs(rply->nBytes) - sizeof(*rply);
 
-		sz/=sizeof(int16_t)*4; /* four channels */
+		sz/=(d32 ? sizeof(int32_t): sizeof(int16_t))*4; /* four channels */
 
 		/* Dump packet */
-		buf = (int16_t*)rply->data;
+		buf.r = rply->data;
 
 		printf("// IDX: %i, TYPE %i\n",
 			rply->strm_cmd_idx,
@@ -162,13 +171,23 @@ int16_t           *buf;
 		 */
 		if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
 			for (i=0; i<sz*4; i+=4) {
-				printf("%5i %5i %5i %5i\n",
-					buf[i+0], buf[i+1], buf[i+2], buf[i+3]);
+				if ( d32 ) {
+					printf("%5i %5i %5i %5i\n",
+							buf.l[i+0], buf.l[i+1], buf.l[i+2], buf.l[i+3]);
+				} else {
+					printf("%5i %5i %5i %5i\n",
+							buf.s[i+0], buf.s[i+1], buf.s[i+2], buf.s[i+3]);
+				}
 			}
 		} else {
 			for (i=0; i<sz; i++) {
-				printf("%5i %5i %5i %5i\n",
-					buf[i+0*sz], buf[i+1*sz], buf[i+2*sz], buf[i+3*sz]);
+				if ( d32 ) {
+					printf("%5i %5i %5i %5i\n",
+							buf.l[i+0*sz], buf.l[i+1*sz], buf.l[i+2*sz], buf.l[i+3*sz]);
+				} else {
+					printf("%5i %5i %5i %5i\n",
+							buf.s[i+0*sz], buf.s[i+1*sz], buf.s[i+2*sz], buf.s[i+3*sz]);
+				}
 			}
 		}
 		printf("\n\n");
@@ -188,6 +207,7 @@ main(int argc, char **argv)
 int               sd;
 int               type = -1;
 int               ch;
+int               i;
 PadStrmCommandRec scmd;
 int               port      = 0;
 int               listener  = 0;
@@ -207,7 +227,7 @@ uint32_t          mcaddr    = 0;
 const char *      mcgrp     = 0;
 int               err;
 
-	while ( (ch = getopt(argc, argv, "bvcehl:n:C:s:d:S:P:p:m:")) > 0 ) {
+	while ( (ch = getopt(argc, argv, "bvcehl:n:C:s:d:S:t:P:p:m:")) > 0 ) {
 		switch (ch) {
 			default:
 				fprintf(stderr,"Unknown option '%c'\n",ch);
@@ -245,6 +265,14 @@ int               err;
 #else
 				fprintf(stderr,"program was built w/o SDDS support; recompile with -DUSE_SDDS\n");
 #endif
+			break;
+
+			case 't':
+				if ( 1 != sscanf(optarg, "%i", &i) ) {
+					fprintf(stderr,"need <timeout> (int) argument\n");
+					exit(1);
+				}
+				padStreamTimeoutSecs = i;
 			break;
 
 			case 'p':

@@ -1,8 +1,10 @@
 #include <udpComm.h>
 #include <padProto.h>
+#include <padStream.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 #include <netinet/in.h>
 
@@ -24,6 +26,9 @@ static SddsFileDat sddsDat         =  0;
 static SddsPage    sddsPag         =  0;
 static int         sddsPgFst       =  0;
 static int         sddsPgLst       = -1;
+
+static time_t      petTime;
+time_t             padStreamTimeoutSecs = 10;
 
 static void
 clearNames()
@@ -94,92 +99,135 @@ typedef struct StripSimValRec_ {
 	int32_t	a,b,c,d;
 } StripSimValRec, *StripSimVal;
 
+static __inline__ int32_t swapl(int32_t x)
+{
+uint32_t v = (uint32_t)x;
+	v = ((v & 0x00ff00ff) << 8) | ((v>>8) & 0x00ff00ff);
+	v = (v >> 16) | (v<<16);
+	return (int32_t) v;
+}
+
 static void *
 streamSim(void *packetBuffer,
 			int nsamples,
+			int d32,
 			int little_endian,
 			int column_major,
 			void *uarg)
 {
-int16_t		*buf = packetBuffer;
-StripSimVal ini  = uarg;
+int16_t		*buf  = packetBuffer;
+int32_t     *bufl = packetBuffer;
+StripSimVal ini   = uarg;
 int         swp;
 static unsigned long noise = 1;
 float       c,s;
 int         ai,bi,ci,di;
 int         aq,bq,cq,dq;
+int32_t     atmp, btmp, ctmp, dtmp;
+int         i;
 
 	swp    = ( bigEndian() != !little_endian );
 
-	/* We can introduce random phase shift and time of arrival
-	 * (common-mode to all channels)
-	 * by submitting the first two samples of the filter
-	 * recursion.
-	 *
-	 * Since  A * f(n) + B * f(n-1) o-@  A * F(z) + B * 1/z * F(z) 
-	 *
-	 * and we want to maintain the signal energy constant:
-	 *
-	 *  / (A+B/z)(A+B/conj(z)) |F(z)|^2 df == independent of A/B ratio
-	 *
-	 *  -> A^2 + B^2 / (|z|^2) + AB (1/z + conj(1/z))
-	 *
-	 *  should be constant as we vary A/B; 
-	 *
-	 *  |z|^2 = 1 on unit circle and we neglect the  1/z+conj(1/z) term
-	 *  assuming that
-	 *
-	 *   / |F(z)|^2 cos(2pi f Ts) df is very small.
-	 *
-	 *  => A^2 + B^2 == const, hence we can set
-	 *
-	 *  A = X cos(phi)
-	 *  B = X sin(phi)
-	 *
-	 *  for given amplitude X and a random phase 'phi'
-	 */
-
-	c = cosf(2*3.14159265*randval(noise)/(float)RANDVALMAX);
-	s = sinf(2*3.14159265*randval(noise)/(float)RANDVALMAX);
-
-/*
-	c=1.; s=0.;
-	if ( c > 0. ) {
-		c = 1.; s = 0.;
+	if ( d32 ) {
+		if ( swp ) {
+			atmp = swapl(ini->a);
+			btmp = swapl(ini->b);
+			ctmp = swapl(ini->c);
+			dtmp = swapl(ini->d);
+		} else {
+			atmp = ini->a;
+			btmp = ini->b;
+			ctmp = ini->c;
+			dtmp = ini->d;
+		}
+		if ( column_major ) {
+			for ( i=0; i<nsamples; i++ ) {
+				bufl[i + 0] = atmp;
+				bufl[i + 1] = btmp;
+				bufl[i + 2] = ctmp;
+				bufl[i + 3] = dtmp;
+			}
+		} else {
+			for ( i=0; i<nsamples; i++ ) {
+				bufl[i + 0*nsamples] = atmp;
+				bufl[i + 1*nsamples] = btmp;
+				bufl[i + 2*nsamples] = ctmp;
+				bufl[i + 3*nsamples] = dtmp;
+			}
+		}
 	} else {
-		c = 0.; s = 1.;
-	}
-*/
 
-	randstep(&noise);
+		/* We can introduce random phase shift and time of arrival
+		 * (common-mode to all channels)
+		 * by submitting the first two samples of the filter
+		 * recursion.
+		 *
+		 * Since  A * f(n) + B * f(n-1) o-@  A * F(z) + B * 1/z * F(z) 
+		 *
+		 * and we want to maintain the signal energy constant:
+		 *
+		 *  / (A+B/z)(A+B/conj(z)) |F(z)|^2 df == independent of A/B ratio
+		 *
+		 *  -> A^2 + B^2 / (|z|^2) + AB (1/z + conj(1/z))
+		 *
+		 *  should be constant as we vary A/B; 
+		 *
+		 *  |z|^2 = 1 on unit circle and we neglect the  1/z+conj(1/z) term
+		 *  assuming that
+		 *
+		 *   / |F(z)|^2 cos(2pi f Ts) df is very small.
+		 *
+		 *  => A^2 + B^2 == const, hence we can set
+		 *
+		 *  A = X cos(phi)
+		 *  B = X sin(phi)
+		 *
+		 *  for given amplitude X and a random phase 'phi'
+		 */
 
-	ai = (int)((float)ini->a * c); aq	= (int)((float)ini->a * s);
-	bi = (int)((float)ini->b * c); bq	= (int)((float)ini->b * s);
-	ci = (int)((float)ini->c * c); cq	= (int)((float)ini->c * s);
-	di = (int)((float)ini->d * c); dq	= (int)((float)ini->d * s);
+		c = cosf(2*3.14159265*randval(noise)/(float)RANDVALMAX);
+		s = sinf(2*3.14159265*randval(noise)/(float)RANDVALMAX);
 
-	if ( column_major ) {
-		iir2_bpmsim(buf++, nsamples, ai, aq,  &noise, swp, NCHNS);
-		iir2_bpmsim(buf++, nsamples, bi, bq,  &noise, swp, NCHNS);
-		iir2_bpmsim(buf++, nsamples, ci, cq,  &noise, swp, NCHNS);
-		iir2_bpmsim(buf++, nsamples, di, dq,  &noise, swp, NCHNS);
-	} else {
-		iir2_bpmsim(buf, nsamples, ai, aq, &noise, swp, 1);
-		buf += nsamples;
-		iir2_bpmsim(buf, nsamples, bi, bq, &noise, swp, 1);
-		buf += nsamples;
-		iir2_bpmsim(buf, nsamples, ci, cq, &noise, swp, 1);
-		buf += nsamples;
-		iir2_bpmsim(buf, nsamples, di, dq, &noise, swp, 1);
+		/*
+		   c=1.; s=0.;
+		   if ( c > 0. ) {
+		   c = 1.; s = 0.;
+		   } else {
+		   c = 0.; s = 1.;
+		   }
+		 */
+
+		randstep(&noise);
+
+		ai = (int)((float)ini->a * c); aq	= (int)((float)ini->a * s);
+		bi = (int)((float)ini->b * c); bq	= (int)((float)ini->b * s);
+		ci = (int)((float)ini->c * c); cq	= (int)((float)ini->c * s);
+		di = (int)((float)ini->d * c); dq	= (int)((float)ini->d * s);
+
+		if ( column_major ) {
+			iir2_bpmsim(buf++, nsamples, ai, aq,  &noise, swp, NCHNS);
+			iir2_bpmsim(buf++, nsamples, bi, bq,  &noise, swp, NCHNS);
+			iir2_bpmsim(buf++, nsamples, ci, cq,  &noise, swp, NCHNS);
+			iir2_bpmsim(buf++, nsamples, di, dq,  &noise, swp, NCHNS);
+		} else {
+			iir2_bpmsim(buf, nsamples, ai, aq, &noise, swp, 1);
+			buf += nsamples;
+			iir2_bpmsim(buf, nsamples, bi, bq, &noise, swp, 1);
+			buf += nsamples;
+			iir2_bpmsim(buf, nsamples, ci, cq, &noise, swp, 1);
+			buf += nsamples;
+			iir2_bpmsim(buf, nsamples, di, dq, &noise, swp, 1);
+		}
+
 	}
 
 	return packetBuffer;
 }
 
 static int
-strmReplySetup(PadReply rply, uint32_t xid, int le, int col_maj, int nsamples, int chnl)
+strmReplySetup(PadReply rply, uint32_t xid, int d32, int le, int col_maj, int nsamples, int chnl)
 {
-int len = nsamples*sizeof(int16_t)*NCHNS + sizeof(*rply);
+int len = nsamples*(d32 ? sizeof(int32_t) : sizeof(int16_t))*NCHNS + sizeof(*rply);
 
 	/* Setup Reply */
 	rply->version         = PADPROTO_VERSION1;
@@ -195,13 +243,37 @@ int len = nsamples*sizeof(int16_t)*NCHNS + sizeof(*rply);
 		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_LE;
 	if ( col_maj )
 		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_CM;
+	if ( d32 )
+		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_32;
 	rply->strm_cmd_idx    = 0;
 
 	return len;
 }
 
+/* refresh timestamp and transaction id */
+static void
+dopet(PadRequest req, PadReply rply)
+{
+struct timeval now;
+	rply->timestampHi = req->timestampHi;
+	rply->timestampLo = req->timestampLo;
+	rply->xid         = req->xid;
+	gettimeofday(&now, 0);
+	petTime           = now.tv_sec;
+}
+
 static int sd   = -1;
 PadReply   rply =  0 ;
+
+int
+padStreamPet(PadRequest req, uint32_t hostip)
+{
+	if ( sd < 0 )
+		return -ENOTCONN;
+	/* FIXME should verify that hostip == connected peer's address here...*/
+	dopet(req, rply);
+	return 0;
+}
 
 int
 padStreamStart(PadRequest req, PadStrmCommand cmd, int me, uint32_t hostip)
@@ -209,6 +281,7 @@ padStreamStart(PadRequest req, PadStrmCommand cmd, int me, uint32_t hostip)
 uint32_t nsamples = ntohl(cmd->nsamples);
 int      le       = cmd->flags & PADCMD_STRM_FLAG_LE;
 int      cm       = cmd->flags & PADCMD_STRM_FLAG_CM;
+int      d32      = cmd->flags & PADCMD_STRM_FLAG_32;
 
 #if 0
 	if ( sd >= 0 )
@@ -234,6 +307,7 @@ int      cm       = cmd->flags & PADCMD_STRM_FLAG_CM;
 	if ( sddsFnam ) {
 		if ( sddsDat ) {
 			if (  nsamples != sddsDat->pages->nSamples
+				|| ((d32? FLG_32:0) ^ (sddsDat->pages->flags & FLG_32))
 				|| ((le ? FLG_LE:0) ^ (sddsDat->pages->flags & FLG_LE))
 				|| ((cm ? FLG_CM:0) ^ (sddsDat->pages->flags & FLG_CM) )) {
 				fprintf(stderr,"Error: cannot restart SDDS stream with different layout, endianness or sample number\n");
@@ -246,6 +320,7 @@ int      cm       = cmd->flags & PADCMD_STRM_FLAG_CM;
 							sddsCols[2], sddsCols[3], 
 							sddsPgFst, sddsPgLst,
 							nsamples,
+							(d32? FLG_32 : 0) |
 							(cm ? FLG_CM : 0) |
 							(le ? FLG_LE : 0)
 							) ) ) {
@@ -259,7 +334,9 @@ int      cm       = cmd->flags & PADCMD_STRM_FLAG_CM;
 	if ( !rply )
 		rply = malloc(2048);
 
-	strmReplySetup(rply, req ? req->xid : 0, le, cm, nsamples, me);
+	strmReplySetup(rply, req ? req->xid : 0, d32, le, cm, nsamples, me);
+
+	dopet(req, rply);
 
 	return 0;
 
@@ -273,10 +350,17 @@ int
 padStream(int32_t a, int32_t b, int32_t c, int32_t d)
 {
 StripSimValRec      v = {a,b,c,d};
-int len, nsamples;
+int                 len, nsamples, d32;
+struct timeval      now;
 
 	if ( sd < 0 )
 		return -ENODEV;
+
+	gettimeofday(&now, 0);
+	if ( now.tv_sec - petTime > padStreamTimeoutSecs ) {
+		padStreamStop(0);
+		return -ETIMEDOUT;
+	}
 
 	len      = ntohs(rply->nBytes);
 
@@ -285,17 +369,19 @@ int len, nsamples;
 		if ( ! sddsPag )
 			sddsPag = sddsDat->pages;
 
-		memcpy(rply->data, sddsPag->data, len - sizeof(*rply));
+		memcpy(rply->data, sddsPag->data.r, len - sizeof(*rply));
 
 		sddsPag = sddsPag->next;
 
 	} else {
 #endif
-	nsamples = (len - sizeof(*rply))/NCHNS/sizeof(int16_t);
+	d32 = rply->strm_cmd_flags & PADCMD_STRM_FLAG_32;
+	nsamples = (len - sizeof(*rply))/NCHNS/(d32 ? sizeof(int32_t) : sizeof(int16_t));
 
 	streamSim(
 		rply->data,
 		nsamples, 
+		d32,
 		rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
 		rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM,
 		&v);
@@ -316,34 +402,40 @@ static int32_t d = 5000;
 int
 padStreamSimulated(void *unused)
 {
-	return padStream(a,b,c,d);
+	padStream(a,b,c,d);
+	return 0;
 }
 
 int
-padStreamSim(PadSimCommand scmd)
+padStreamSim(PadSimCommand scmd, uint32_t hostip)
 {
 int dosend = 1;
 
-	if ( sd < 0 )
-		return -ENODEV; /* stream has not been initialized yet */
 
 	if ( scmd ) {
-			a = ntohl(scmd->a);
-			b = ntohl(scmd->b);
-			c = ntohl(scmd->c);
-			d = ntohl(scmd->d);
 		dosend =  ! (PADCMD_SIM_FLAG_NOSEND & scmd->flags );
+
+		if ( dosend ) {
+			if ( sd < 0 )
+				return -ENOTCONN; /* stream not started */
+			/* FIXME: should verify hostip against connected host here */
+		}
+
+		a = ntohl(scmd->a);
+		b = ntohl(scmd->b);
+		c = ntohl(scmd->c);
+		d = ntohl(scmd->d);
 	}
 
-
-	return  dosend ? padStreamSimulated(0) : 0;
+	return  dosend ? padStream(a,b,c,d) : 0;
 }
 
 int
-padStreamStop()
+padStreamStop(uint32_t hostip)
 {
 	if ( sd < 0 ) 
-		return -ENODEV;
+		return -ENOTCONN;
+	/* FIXME: should verify against connected host here */
 	udpCommClose(sd);
 	sd = -1;
 #ifdef USE_SDDS

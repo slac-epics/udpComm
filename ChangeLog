@@ -1,3 +1,13 @@
+ 20100118 (T.S.)
+ - src/hostStream.c:
+    o added timeout functionality (stream times out and stops if no
+      PET or STRM command is received withing timeout).
+    o added support for 32-bit stream data.
+    o added padStreamPet().
+    o include <padStream.h> to ensure API compatibility.
+    o let padStreamSim() succeed even if stream is not connected
+      provided that 'nosend' option is set.
+ - src/hostStream.h: export/declare padStreamTimeoutSecs;
  20100113 (T.S.)
  - src/padProto.c, src/padStream.c, src/padStream.h:
    moved stream connection state handling into the padStream module and

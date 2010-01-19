@@ -16,16 +16,30 @@
 
 #define VECTALGN(x)   ((((uintptr_t)(x)) + (VECTSZ) - 1) & ~((VECTSZ)-1))
 typedef int16_t vShort    __attribute__((vector_size(VECTSZ),may_alias));
+typedef int32_t vLong     __attribute__((vector_size(VECTSZ),may_alias));
 typedef vShort  vShort_a  __attribute__((may_alias));
+typedef vLong   vLong_a   __attribute__((may_alias));
 
 #ifdef __SSE2__
-static __inline__ vShort vec_swab(vShort x)
+static __inline__ vShort vec_swab16(vShort x)
 {
 	return __builtin_ia32_psrlwi128(x,8) | __builtin_ia32_psllwi128(x,8);
 }
 #else
-#error "Need to implement vec_swab() for your CPU"
+#error "Need to implement vec_swab16() for your CPU"
 #endif
+
+#ifdef __SSE2__
+static __inline__ vLong vec_swab32(vLong x)
+{
+	x = (vLong)(__builtin_ia32_psrlwi128((vShort)x,8)  | __builtin_ia32_psllwi128((vShort)x,8));
+	x = __builtin_ia32_psrldi128(x,16) | __builtin_ia32_pslldi128(x,16);
+	return x;
+}
+#else
+#error "Need to implement vec_swab16() for your CPU"
+#endif
+
 
 #else
 #define VECTALGN(x)   ((uintptr_t)(x))
@@ -57,25 +71,70 @@ sddsDatClean(SddsFileDat wrk)
 	}
 }
 
-static void vswab(SddsPage p)
+static __inline__ uint16_t swabs(uint16_t x)
+{
+	return (x<<8) | (x>>8);
+}
+
+static __inline__ uint32_t swabl(uint32_t x)
+{
+	x = (( x & 0x00ff00ff ) << 8) | ((x<<8) & 0x00ff00ff);
+	return (x>>16) | (x<<16);
+}
+
+
+
+static void vswab16(SddsPage p)
 {
 int         j;
 int         N = p->nSamples * NCOLS;
 #ifdef VECTSZ
-int nvecs     = N/(VECTSZ/sizeof(*p->data));
-vShort    *pv = (vShort*)p->data;
+int nvecs     = N/(VECTSZ/sizeof(*p->data.s));
+vShort    *pv = (vShort*)p->data.s;
 
 	for ( j = 0; j<nvecs; j++ )
-		pv[j] = vec_swab(pv[j]);
+		pv[j] = vec_swab16(pv[j]);
 
-	j *= (VECTSZ/sizeof(*p->data));
+	j *= (VECTSZ/sizeof(*p->data.s));
 #else
 	j  = 0;
 #endif
 	for ( ; j<N; j++ ) {
 		uint16_t tmpu;
-		tmpu = p->data[j];
-		p->data[j] = (int16_t)(tmpu>>8 | tmpu<<8);
+		tmpu = p->data.s[j];
+		p->data.s[j] = (int16_t)swabs(tmpu);
+	}
+}
+
+static void vswab32(SddsPage p)
+{
+int         j;
+int         N = p->nSamples * NCOLS;
+#ifdef VECTSZ
+int nvecs     = N/(VECTSZ/sizeof(*p->data.l));
+vLong      *pv = (vLong*)p->data.l;
+
+	for ( j = 0; j<nvecs; j++ )
+		pv[j] = vec_swab32(pv[j]);
+
+	j *= (VECTSZ/sizeof(*p->data.l));
+#else
+	j  = 0;
+#endif
+	for ( ; j<N; j++ ) {
+		uint32_t tmpu;
+		tmpu = p->data.l[j];
+		p->data.l[j] = (int32_t)swabl(tmpu);
+	}
+}
+
+static void
+vswab(SddsPage p)
+{
+	if ( p->flags & FLG_32 ) {
+		vswab32(p);
+	} else {
+		vswab16(p);
 	}
 }
 
@@ -97,10 +156,10 @@ SddsFileDat  rval  = 0;
 SddsPage    *tailp,tail;
 SddsFileDat  wrk   = 0;
 int          pp,m,n,i,ii,j,jj,sz,st;
-int16_t     *cols [NCOLS] = {    0,     0,     0,     0};
+SddsDataP    cols [NCOLS] = {{r:  0}, {r:  0}, {r:  0}, {r:  0}};
 const char  *colns[NCOLS] = {coln1, coln2, coln3, coln4};
 long long    mean[NCOLS]  = {  0LL,   0LL,   0LL,   0LL};
-int16_t      means[NCOLS];
+int32_t      means[NCOLS];
 
 	if ( !fnam ) {
 		fprintf(stderr,"sddsFileSlurp: no filename given\n");
@@ -150,16 +209,28 @@ int16_t      means[NCOLS];
 
 		for ( i = 0; i<sizeof(cols)/sizeof(cols[0]); i++ ) {
 			if ( colns[i] ) {
-				if ( ! (cols[i] = SDDS_GetColumnInShort( &sdds, (char*)colns[i] )) ) {
-					fprintf(stderr,"Unable to read column '%s' (page %u)\n",
-						colns[i], pp);
-					goto bail;
+				if ( flags & FLG_32 ) {
+					if ( ! (cols[i].l = SDDS_GetColumnInLong( &sdds, (char*)colns[i] )) ) {
+						fprintf(stderr,"Unable to read column '%s' (page %u)\n",
+								colns[i], pp);
+						goto bail;
+					}
+				} else {
+					if ( ! (cols[i].s = SDDS_GetColumnInShort( &sdds, (char*)colns[i] )) ) {
+						fprintf(stderr,"Unable to read column '%s' (page %u)\n",
+								colns[i], pp);
+						goto bail;
+					}
 				}
 			}
 		}
 
 		sz  = sizeof(**tailp);                            /* page struct itself */
-		sz += sizeof((*tailp)->data) * (nSamples*NCOLS);  /* the numbers        */
+		if ( flags & FLG_32 ) {
+			sz += sizeof(*(*tailp)->data.l) * (nSamples*NCOLS);  /* the numbers        */
+		} else {
+			sz += sizeof(*(*tailp)->data.s) * (nSamples*NCOLS);  /* the numbers        */
+		}
 #ifdef VECTSZ
 		sz += VECTSZ-1;                                   /* vector alignment   */
 		sz += VECTSZ-1;                                   /* pad end for vect. access */
@@ -171,32 +242,50 @@ int16_t      means[NCOLS];
 			goto bail;
 		}
 
-		tail->data = (void*)VECTALGN(tail->buf);
+		tail->data.r = (void*)VECTALGN(tail->buf);
 
 		if ( flags & FLG_CM ) {
 			/* Now copy the data into desired format;  */
 			for ( j=jj=0; j<m; j++, jj+=NCOLS ) {
-				for ( i=0; i<NCOLS; i++ ) {
-					mean[i] += (tail->data[i+jj] = cols[i] ? cols[i][j] : 0);
+				if ( flags & FLG_32 ) {
+					for ( i=0; i<NCOLS; i++ ) {
+						mean[i] += (tail->data.l[i+jj] = cols[i].l ? cols[i].l[j] : 0);
+					}
+				} else {
+					for ( i=0; i<NCOLS; i++ ) {
+						mean[i] += (tail->data.s[i+jj] = cols[i].s ? cols[i].s[j] : 0);
+					}
 				}
 			}
 
 			for ( i=0; i<NCOLS; i++ ) {
-				means[i] = (int16_t)( mean[i] / (long long)m);
+				means[i] = (int32_t)( mean[i] / (long long)m);
 			}
 
 			/* pad with mean value if nsamples > m */
 			for ( ; j<nSamples; j++, jj+=NCOLS ) {
-				for ( i=0; i<NCOLS; i++ ) {
-					tail->data[i+jj] = means[i];
+				if ( flags & FLG_32 ) {
+					for ( i=0; i<NCOLS; i++ ) {
+						tail->data.l[i+jj] = means[i];
+					}
+				} else {
+					for ( i=0; i<NCOLS; i++ ) {
+						tail->data.s[i+jj] = means[i];
+					}
 				}
 			}
 
 		} else {
 			/* Now copy the data into desired format;  */
 			for ( i=ii=0; i<NCOLS; i++, ii+=nSamples ) {
-				for ( j=0; j<m; j++ ) {
-					mean[i] += (tail->data[ii+j] = cols[i] ? cols[i][j] : 0);
+				if ( flags & FLG_32 ) {
+					for ( j=0; j<m; j++ ) {
+						mean[i] += (tail->data.l[ii+j] = cols[i].l ? cols[i].l[j] : 0);
+					}
+				} else {
+					for ( j=0; j<m; j++ ) {
+						mean[i] += (tail->data.s[ii+j] = cols[i].s ? cols[i].s[j] : 0);
+					}
 				}
 			}
 
@@ -206,8 +295,14 @@ int16_t      means[NCOLS];
 
 			/* Now copy the data into desired format;  */
 			for ( i=ii=0; i<NCOLS; i++, ii+=nSamples ) {
-				for ( j=m; j<nSamples; j++ ) {
-					tail->data[ii+j] = means[i];
+				if ( flags & FLG_32 ) {
+					for ( j=m; j<nSamples; j++ ) {
+						tail->data.l[ii+j] = means[i];
+					}
+				} else {
+					for ( j=m; j<nSamples; j++ ) {
+						tail->data.s[ii+j] = means[i];
+					}
 				}
 			}
 		}
@@ -222,9 +317,9 @@ int16_t      means[NCOLS];
 		tail->flags    = flags & (FLG_CM | FLG_LE);
 
 		for ( i = 0; i<sizeof(cols)/sizeof(cols[0]); i++ ) {
-			if ( cols[i] ) {
-				SDDS_Free(cols[i]);
-				cols[i] = 0;
+			if ( cols[i].r ) {
+				SDDS_Free(cols[i].r);
+				cols[i].r = 0;
 			}
 		}
 
@@ -239,8 +334,8 @@ int16_t      means[NCOLS];
 bail:
 	SDDS_Terminate( &sdds );
 	for ( i=0; i<sizeof(cols)/sizeof(cols[0]); i++ ) {
-		if ( cols[i] ) 
-			SDDS_Free(cols[i]);
+		if ( cols[i].r ) 
+			SDDS_Free(cols[i].r);
 	}
 	sddsDatClean(wrk);
 	return rval;
@@ -287,12 +382,15 @@ register ua32 a,b,c,d;
 int
 sddsTransformPage(SddsPage p, int flags)
 {
-int               f;
+int               f,sz;
 register int      j,i,jj,ii;
 #ifndef VECTSZ
 register uint16_t tmpu;
+register uint32_t tmpul;
 #endif
-int16_t           *wrk = 0;
+SddsDataP         wrk = { r:0 };
+
+	sz = (flags & FLG_32) ? sizeof(*wrk.l) : sizeof(*wrk.s);
 
 	switch ( (f = (p->flags ^ flags )) ) {
 		default:
@@ -310,8 +408,8 @@ int16_t           *wrk = 0;
 #endif
 			/* transpose only     */
 
-			if ( !wrk ) {
-				wrk = malloc(p->nSamples * sizeof(*wrk) * NCOLS);
+			if ( !wrk.r ) {
+				wrk.r = malloc(p->nSamples * sz * NCOLS);
 			}
 
 			/* This algorithm is ugly and probably not most efficient,
@@ -319,18 +417,30 @@ int16_t           *wrk = 0;
 			 */
 			if ( (flags & FLG_CM) ) {
 				for ( j=jj=0; j<p->nSamples; jj+=NCOLS,j++ ) {
-					for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
-						wrk[i+jj] = p->data[ii+j];
+					if ( flags * FLG_32 ) {
+						for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
+							wrk.l[i+jj] = p->data.l[ii+j];
+						}
+					} else {
+						for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
+							wrk.s[i+jj] = p->data.s[ii+j];
+						}
 					}
 				}
 			} else {
 				for ( j=jj=0; j<p->nSamples; jj+=NCOLS,j++ ) {
-					for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
-						wrk[ii+j] = p->data[i+jj];
+					if ( flags * FLG_32 ) {
+						for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
+							wrk.l[ii+j] = p->data.l[i+jj];
+						}
+					} else {
+						for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
+							wrk.s[ii+j] = p->data.s[i+jj];
+						}
 					}
 				}
 			}
-			memcpy(p->data, wrk, p->nSamples * sizeof(*wrk) * NCOLS);
+			memcpy(p->data.r, wrk.r, p->nSamples * sz * NCOLS);
 #ifdef VECTSZ
 			}
 			if ( (f & FLG_LE) ) {
@@ -347,8 +457,8 @@ int16_t           *wrk = 0;
 		case FLG_CM | FLG_LE:
 			/* transpose & byte-swap */
 
-			if ( !wrk ) {
-				wrk = malloc(p->nSamples * sizeof(*wrk) * NCOLS);
+			if ( !wrk.r ) {
+				wrk.r = malloc(p->nSamples * sz * NCOLS);
 			}
 
 			/* This algorithm is ugly and probably not most efficient,
@@ -356,10 +466,18 @@ int16_t           *wrk = 0;
 			 */
 			if ( (flags & FLG_CM) ) {
 				for ( j=jj=0; j<p->nSamples; jj+=NCOLS,j++ ) {
-					for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
-						tmpu = p->data[ii+j];
-						tmpu = (tmpu>>8) | (tmpu<<8);
-						wrk[i+jj] = tmpu;
+					if ( flags & FLG_32 ) {
+						for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
+							tmpu = p->data[ii+j];
+							tmpu = (tmpu>>8) | (tmpu<<8);
+							wrk[i+jj] = tmpu;
+						}
+					} else {
+						for ( i=ii=0; i<NCOLS; ii+=p->nSamples,i++ ) {
+							tmpu = p->data.s[ii+j];
+							tmpu = (tmpu>>8) | (tmpu<<8);
+							wrk.s[i+jj] = tmpu;
+						}
 					}
 				}
 			} else {
@@ -371,12 +489,12 @@ int16_t           *wrk = 0;
 					}
 				}
 			}
-			memcpy(p->data, wrk, p->nSamples * sizeof(*wrk) * NCOLS);
+			memcpy(p->data.r, wrk.r, p->nSamples * sz * NCOLS);
 		break;
 #endif
 	}
-	if ( wrk )
-		free(wrk);
+	if ( wrk.r )
+		free(wrk.r);
 	p->flags = flags;
 	return 0;
 }

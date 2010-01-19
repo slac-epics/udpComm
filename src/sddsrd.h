@@ -7,12 +7,19 @@
 
 #define FLG_CM (1<<0)
 #define FLG_LE (1<<1)
+#define FLG_32 (1<<2)
+
+typedef union SddsDataP_ {
+	int16_t *s;
+	int32_t *l;
+	void    *r;
+} SddsDataP;
 
 typedef struct SddsPageRec_ {
 	struct SddsPageRec_ *next;
 	int                 nSamples;
 	int                 flags;
-	int16_t             *data; /* pointer to aligned data area */
+	SddsDataP           data; /* pointer to aligned data area */
 	char                buf[];
 } SddsPageRec, *SddsPage;
 

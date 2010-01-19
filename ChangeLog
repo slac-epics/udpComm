@@ -1,4 +1,6 @@
  20100118 (T.S.)
+ - src/sddsrd.c, src/sddsrd.h: added support for 32-bit stream data.
+ 20100118 (T.S.)
  - src/padStream.c, src/padStream.h:
     o changed semantics of 'start' argument to start_stop_cb(); this
       is now a pointer to the STRM command (start) or NULL (stop).

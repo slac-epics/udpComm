@@ -1,4 +1,9 @@
  20100118 (T.S.)
+ - src/padProto.c:
+    o ignore return value of padStreamPet() (PADCMD_SIM command).
+ 20100118 (T.S.)
+ - src/padProto.h: added PADCMD_STRM_FLAG_32 (32-bit stream data).
+ 20100118 (T.S.)
  - src/hostStream.c:
     o added timeout functionality (stream times out and stops if no
       PET or STRM command is received withing timeout).

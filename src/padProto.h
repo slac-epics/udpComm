@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.1.1.1 2009/12/06 16:19:02 strauman Exp $ */
+/* $Id: padProto.h,v 1.2 2009/12/15 23:27:39 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -47,6 +47,7 @@ typedef struct PadCommandRec_ {
 
 #define PADCMD_STRM_FLAG_LE	1	/* They want little-endian data    */
 #define PADCMD_STRM_FLAG_CM	2	/* They want column-major  data    */
+#define PADCMD_STRM_FLAG_32 4   /* Data is 32-bit                  */
 
 #define PADCMD_SIM_FLAG_NOSEND 1 /* Don't send simulated waveform; just save requested amplitudes */
 

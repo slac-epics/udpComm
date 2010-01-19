@@ -9,8 +9,8 @@ include $(TOP)/configure/CONFIG
 #==================================================
 # Build an IOC support library
 #LIBRARY_HOST        = udpCommBSD padSupport
-LIBRARY_IOC_DEFAULT = udpCommBSD padSupport
-LIBRARY_IOC_RTEMS   = udpCommBSD padSupport udpComm
+LIBRARY_IOC_DEFAULT = udpCommBSD padSupport padUdpCommSupport
+LIBRARY_IOC_RTEMS   = udpCommBSD padSupport padUdpCommSupport udpComm
 
 PROD_HOST           = padProtoHost
 
@@ -26,22 +26,27 @@ SDDS_YES_SRCS=sddsrd.c
 SDDS_YES_LIBS=SDDS1c
 SDDS_YES_CPPFLAGS=-DUSE_SDDS
 
+TEST_ONLY_YES_CPPFLAGS=-DTEST_ONLY
+
 padProtoHost_SRCS=padProtoHost.c bpmsim.c hostStream.c
 padProtoHost_SRCS+=$(SDDS_$(USE_SDDS)_SRCS)
 padProtoHost_LIBS=padSupport udpCommBSD
 padProtoHost_LDLIBS+=$(SDDS_$(USE_SDDS)_LIBS)
 
 INC += padProto.h padStream.h udpComm.h
+INC += fidProcess.h drvPadUdpComm.h drvPadUdpCommIO.h wavBuf.h
 
 
 #Indicate that we want to use 'normal' socket implementation
-USR_CPPFLAGS += $(SDDS_$(USE_SDDS)_CPPFLAGS)
+USR_CPPFLAGS += $(SDDS_$(USE_SDDS)_CPPFLAGS) $(TEST_ONLY_$(TEST_ONLY)_CPPFLAGS)
 
 # install devXxxSoft.dbd into <top>/dbd
-#DBD += bpmPadSupport.dbd
+DBD += padUdpCommSupport.dbd
 
 # The following are compiled and added to the Support libraries
 padSupport_SRCS += padProto.c
+
+padUdpCommSupport_SRCS += drvPadUdpComm.c fidProcess.c wavBuf.c devWfRawSig.c
 
 padSupport_SRCS_RTEMS-uC5282 = padStream.c bpmsim.c
 

@@ -1,0 +1,1 @@
+device(waveform,VME_IO, devWfRawSig, "WavBuf")

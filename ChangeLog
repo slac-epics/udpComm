@@ -1,4 +1,7 @@
  20100118 (T.S.)
+ - unbundled drvPadUdpComm/wavBuf from Bpm IOC application and moved into
+   udpComm EPICS module.
+ 20100118 (T.S.)
  - BUGFIX - src/udpCommBSD.c: make sure udpComm routines don't pass the return
    value of system calls (like 'connect') but the negative 'errno' value.
  20100118 (T.S.)

@@ -67,8 +67,9 @@ PadCommand 		cmd;
 PadReply   		rply;
 int32_t			err  = 0;
 
-	if ( PADPROTO_VERSION1 != req_p->version )
+	if ( PADPROTO_VERSION1 != req_p->version ) {
 		return -1;
+	}
 
 	n = req_p->nCmds;
 	if ( n <= 0 ) {
@@ -78,7 +79,7 @@ int32_t			err  = 0;
 		chnl = 0; /* first slot */
 	}
 #ifdef DEBUG
-	if ( padProtoDebug & DEBUG_PROTOHDL ) {
+	if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
 		printf("padProtoHandler: received request for channel %i on slot #%i (", me, chnl);
 			if ( PADREQ_BCST == n )
 				printf("BCST");
@@ -94,7 +95,7 @@ int32_t			err  = 0;
 	switch ( (cmd->type & ~PADCMD_QUIET) ) {
 		default:			/* unknown command */
 #ifdef DEBUG
-			if ( padProtoDebug & DEBUG_PROTOHDL ) {
+			if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
 			}
 #endif
 			fprintf(stderr,"padProtoHandler: Unknown request %i\n",cmd->type);	
@@ -103,7 +104,7 @@ int32_t			err  = 0;
 
 		case PADCMD_NOP:	/* ignore  */
 #ifdef DEBUG
-			if ( padProtoDebug & DEBUG_PROTOHDL ) {
+			if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
 				printf("padProtoHandler: NOP command\n");
 			}
 #endif
@@ -111,7 +112,7 @@ int32_t			err  = 0;
 
 		case PADCMD_ECHO:	/* echo request */
 #ifdef DEBUG
-			if ( padProtoDebug & DEBUG_PROTOHDL ) {
+			if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
 				printf("padProtoHandler: ECHO command\n");
 			}
 #endif
@@ -125,7 +126,7 @@ int32_t			err  = 0;
 
 		case PADCMD_STRM:
 #ifdef DEBUG
-			if ( padProtoDebug & DEBUG_PROTOHDL ) {
+			if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
 				printf("padProtoHandler: STRM command\n");
 			}
 #endif
@@ -134,7 +135,7 @@ int32_t			err  = 0;
 
 		case PADCMD_SPET:
 #ifdef DEBUG
-			if ( padProtoDebug & DEBUG_PROTOHDL ) {
+			if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
 				printf("padProtoHandler: SPET command\n");
 			}
 #endif
@@ -144,17 +145,17 @@ int32_t			err  = 0;
 		case PADCMD_STOP:
 			err = padStreamStop(peerip);
 #ifdef DEBUG
-			if ( padProtoDebug & DEBUG_PROTOHDL ) {
+			if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
 				printf("padProtoHandler: STOP command (err = %"PRIi32")\n", err);
 			}
 #endif
 			break;	
 
 		case PADCMD_SIM:
-			if ( ! (err = padStreamPet(req_p, peerip)) )
-				err = padStreamSim( (PadSimCommand) cmd, peerip);
+			padStreamPet(req_p, peerip);
+			err = padStreamSim( (PadSimCommand) cmd, peerip);
 #ifdef DEBUG
-			if ( padProtoDebug & DEBUG_PROTOHDL ) {
+			if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
 				printf("padProtoHandler: SIM command\n");
 			}
 #endif
@@ -221,8 +222,9 @@ uint32_t	peerip;
 				}
 			}
 		} else {
-			if ( poll_cb && poll_cb(cb_arg) )
+			if ( poll_cb && poll_cb(cb_arg) ) {
 				break;
+			}
 		}
 	}
 
@@ -299,7 +301,7 @@ UdpCommPkt  p;
 					return 0;
 				} else {
 #ifdef DEBUG
-					if ( padProtoDebug & DEBUG_REPLYCHK ) {
+					if ( (padProtoDebug & DEBUG_REPLYCHK) ) {
 						/* hand them the buffer for inspection */
 						if (wantReply) {
 							*wantReply = p;

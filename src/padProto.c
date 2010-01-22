@@ -259,7 +259,6 @@ UdpCommPkt  p;
 
 	req->version = PADPROTO_VERSION1;
 	req->nCmds   = who < 0 ? PADREQ_BCST : -who;
-	req->cmdSize = CMDSIZE;
 
 	req->xid     = htonl(xid);
 
@@ -269,13 +268,21 @@ UdpCommPkt  p;
 	/* Add command-specific parameters */
 	switch ( PADCMD_GET(cmd->type = type) ) {
 		default:
-			break;
+			req->cmdSize = sizeof(PadCommandRec);
+		break;
 
 		case PADCMD_STRM:
 			/* cmdData is a 'start command' struct */
 			memcpy(cmd, cmdData, sizeof(PadStrmCommandRec));
+			cmd->type    = type;
+			req->cmdSize = sizeof(PadStrmCommandRec);
+		break;
+
+		case PADCMD_SIM:
+			memcpy(cmd, cmdData, sizeof(PadSimCommandRec));
 			cmd->type = type;
-			break;
+			req->cmdSize = sizeof(PadSimCommandRec);
+		break;
 	}
 
 	if ( (rval = udpCommSendPkt(sd, p, sizeof(*req) + req->cmdSize)) < 0 ) {

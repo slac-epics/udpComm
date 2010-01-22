@@ -452,7 +452,7 @@ DrvPadUdpCommHWTime    tDiff;
 #endif
 
 		chan     = rply->chnl;
-		nsamples = PADRPLY_STRM_NSAMPLES(ntohs(rply->nBytes));
+		nsamples = PADRPLY_STRM_NSAMPLES(rply);
 
 		if ( chan >= MAX_BPM ) {
 			/* drop invalid channels */
@@ -930,7 +930,7 @@ unsigned nsamples;
 	rply = padReplyFind(pkt);
 
 	chan     = rply->chnl;
-	nsamples = PADRPLY_STRM_NSAMPLES(ntohs(rply->nBytes));
+	nsamples = PADRPLY_STRM_NSAMPLES(rply);
 
 	if ( !(pb = wavBufAlloc()) ) {
 		/* Just drop */

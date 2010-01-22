@@ -1,4 +1,8 @@
- 20100118 (T.S.)
+ 20100122 (T.S.)
+ - src/drvPadUdpComm.c:
+   PADRPLY_STRM_NSAMPLES macro arg is now pointer to reply.
+   (Support for 32-bit stream data.)
+20100118 (T.S.)
  - src/Makefile, src/devWfRawSig.c, src/drvPadUdpComm.c, src/drvPadUdpComm.h,
    src/drvPadUdpCommIO.h, src/fidProcess.c, src/fidProcess.h,
    src/padUdpCommSupport.dbd, src/wavBuf.c, src/wavBuf.h:

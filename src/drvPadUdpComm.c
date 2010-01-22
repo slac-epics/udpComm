@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <epicsString.h>
+
 #undef __STRICT_ANSI__
 #include <string.h>
 #include <math.h>
@@ -863,8 +865,8 @@ struct in_addr ina;
 	 */
 	drvPadUdpCommCallbacks = *callbacks;
 
-	if ( !(str=strdup(arg)) ) {
-		epicsPrintf("drvPadUdpCommSetup: not enough memory for strdup\n");
+	if ( !(str=epicsStrDup(arg)) ) {
+		epicsPrintf("drvPadUdpCommSetup: not enough memory for epicsStrDup\n");
 		return;
 	}
 

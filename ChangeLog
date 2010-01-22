@@ -1,4 +1,6 @@
 20100122 (T.S.)
+ - src/drvPadUdpComm.c: replaced strdup() by epicsStrDup().
+20100122 (T.S.)
  - src/fidProcess.c: forgot to #define E_MOD1 and E_MOD5.
    Removed unused variable.
 20100122 (T.S.)

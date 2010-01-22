@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.2 2009/12/15 23:27:01 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.3 2010/01/19 00:29:14 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -63,7 +63,7 @@ union {
 void
 usage(char *nm)
 {
-	fprintf(stderr,"Usage: %s [-bhvec] [-d debug_facility] [-C channel] [-l port] [-n nsamples] [-s srvr_port] [-t <stream_timeout_secs>] "
+	fprintf(stderr,"Usage: %s [-bhveLc] [-d debug_facility] [-C channel] [-l port] [-n nsamples] [-s srvr_port] [-t <stream_timeout_secs>] "
 #ifdef USE_SDDS
 	"[-S sdds_file:col,col,col,col] [-p start:end] "
 #endif
@@ -74,11 +74,12 @@ usage(char *nm)
 	fprintf(stderr,"          -d <facility> enable padProto debug messages (ORed bitset)\n");
 	fprintf(stderr,"          -e request wrong endianness (for testing; STRM command only)\n");
 	fprintf(stderr,"          -c request col-major data   (for testing; STRM command only)\n");
+	fprintf(stderr,"          -L request long (32-bit) data   (STRM command only)\n");
 	fprintf(stderr,"          -n <nsamples> request <nsamples> (STRM command only)\n");
 	fprintf(stderr,"          -C <channel>  send to PAD # <channel>\n");
 	fprintf(stderr,"          -l <port>     operate in STRM listener mode on <port>\n");
 	fprintf(stderr,"          -n <port>     operate in STRM listener mode on <port>\n");
-	fprintf(stderr,"          <msg_type_int> (forced to STRM if any of -[nec] options present:\n");
+	fprintf(stderr,"          <msg_type_int> (forced to STRM if any of -[necL] options present:\n");
 	fprintf(stderr,"                      0 = NOP\n");
 	fprintf(stderr,"                      1 = ECHO\n");
 	fprintf(stderr,"                      2 = STRM (start stream)\n");
@@ -100,17 +101,18 @@ usage(char *nm)
 }
 
 static void
-client(int sd, char *ip, int port, PadStrmCommand scmd)
+client(int sd, char *ip, int port, void *cmdp)
 {
 int               err;
 UdpCommPkt        p = 0;
+PadCommand        cmd = cmdp;
 
 	if ( (err = udpCommConnect(sd, inet_addr(ip), port)) ) {
 		fprintf(stderr,"udpCommConnect: %s",strerror(-err));
 		exit(1);
 	}
 
-	if ( (err=padRequest(sd, theChannel, scmd->type, 0xdead, 0, 0, scmd, &p, 1000)) ) {
+	if ( (err=padRequest(sd, theChannel, cmd->type, 0xdead, 0, 0, cmdp, &p, 1000)) ) {
 		fprintf(stderr,">>> Sending request failed: %s <<<\n",strerror(-err));
 	}
 
@@ -156,9 +158,7 @@ union {
 
 		d32 = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? 1 : 0;
 
-		sz = ntohs(rply->nBytes) - sizeof(*rply);
-
-		sz/=(d32 ? sizeof(int32_t): sizeof(int16_t))*4; /* four channels */
+		sz = PADRPLY_STRM_NSAMPLES(rply);
 
 		/* Dump packet */
 		buf.r = rply->data;
@@ -208,12 +208,17 @@ int               sd;
 int               type = -1;
 int               ch;
 int               i;
-PadStrmCommandRec scmd;
+union {
+PadStrmCommandRec stmc;
+PadSimCommandRec  simc;
+PadCommandRec     rawc;
+}                 the_cmd;
 int               port      = 0;
 int               listener  = 0;
 char               *col     = 0;
 int               nsamples  = 8;
 int               badEndian = 0;
+int               d32       = 0;
 int               colMajor  = 0;
 int               srvrMode  = 0;
 unsigned          dbg       = 0;
@@ -227,7 +232,7 @@ uint32_t          mcaddr    = 0;
 const char *      mcgrp     = 0;
 int               err;
 
-	while ( (ch = getopt(argc, argv, "bvcehl:n:C:s:d:S:t:P:p:m:")) > 0 ) {
+	while ( (ch = getopt(argc, argv, "bvcehLl:n:C:s:d:S:t:P:p:m:")) > 0 ) {
 		switch (ch) {
 			default:
 				fprintf(stderr,"Unknown option '%c'\n",ch);
@@ -296,6 +301,7 @@ int               err;
 			case 'v': verbose   = 1; break;
 			case 'c': colMajor  = 1; type = PADCMD_STRM; break;
 			case 'e': badEndian = 1; type = PADCMD_STRM; break;
+			case 'L': d32       = 1; type = PADCMD_STRM; break;
 
 			case 'C':
 				if ( 1 != sscanf(optarg,"%i",&theChannel) || theChannel > 255 || (theChannel < 0 && -128 != theChannel) ) {
@@ -389,15 +395,31 @@ int               err;
 	if ( listener ) {
 		streamdump(sd);
 	} else {
-		if ( PADCMD_STRM == (scmd.type = type) ) {
-			scmd.flags    = (!isbe() ^ (badEndian == 1)) ? PADCMD_STRM_FLAG_LE : 0;
-			scmd.port     = htons(port+1); /* should be PADPROTO_STRM_PORT */
-			scmd.nsamples = htonl(nsamples);
+		switch ( (the_cmd.rawc.type = type) ) {
+			case PADCMD_STRM:
+				the_cmd.stmc.flags = (!isbe() ^ (badEndian == 1)) ? PADCMD_STRM_FLAG_LE : 0;
+				if ( d32 )
+					the_cmd.stmc.flags |= PADCMD_STRM_FLAG_32;
+				the_cmd.stmc.port     = htons(port+1); /* should be PADPROTO_STRM_PORT */
+				the_cmd.stmc.nsamples = htonl(nsamples);
 
-			if ( colMajor )
-				scmd.flags |= PADCMD_STRM_FLAG_CM;
+				if ( colMajor )
+					the_cmd.stmc.flags |= PADCMD_STRM_FLAG_CM;
+				break;
+
+			case PADCMD_SIM:
+				the_cmd.simc.flags    = 0;
+				the_cmd.simc.sdata[0] = the_cmd.simc.sdata[1] = 0;
+				the_cmd.simc.a        = htonl(0xaaaa);
+				the_cmd.simc.b        = htonl(0xbbbb);
+				the_cmd.simc.c        = htonl(0xcccc);
+				the_cmd.simc.d        = htonl(0xdddd);
+				break;
+
+			default:
+				break;
 		}
-		client(sd, argv[optind], port, &scmd);
+		client(sd, argv[optind], port, &the_cmd);
 	}
 
 	udpCommClose(sd);

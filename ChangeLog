@@ -7,6 +7,11 @@
  - src/padProto.h:
    PADRPLY_STRM_NSAMPLES macro arg is now pointer to reply.
    (Support for 32-bit stream data.)
+ - src/padProtoHost.c:
+    o New '-L' option to request 32-bit data streams.
+    o Compute nsamples using PADRPLY_STRM_NSAMPLES macro.
+    o Let SIM command send values 0xaaaa, 0xbbbb, 0xcccc, 0xdddd.
+      (Should have another option to specivy values).
 20100118 (T.S.)
  - src/Makefile, src/devWfRawSig.c, src/drvPadUdpComm.c, src/drvPadUdpComm.h,
    src/drvPadUdpCommIO.h, src/fidProcess.c, src/fidProcess.h,

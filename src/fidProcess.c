@@ -23,6 +23,9 @@ epicsTimeStamp ts;
 	drvPadUdpCommSendStartAll(&ts);
 }
 
+#define E_MOD2 1
+#define E_MOD5 4
+
 void
 fidTimeGetBaseline_generic(void *unused)
 {
@@ -33,7 +36,6 @@ epicsTimeStamp             time_s;
 unsigned long              patternStatus;
 int                        st;
 DrvPadUdpCommHWTime        now, diff;
-static int                 inited  = 0;
 
 	fidProcessHasBeam = 1;
 

@@ -67,7 +67,7 @@ PadCommand 		cmd;
 PadReply   		rply;
 int32_t			err  = 0;
 
-	if ( PADPROTO_VERSION1 != req_p->version ) {
+	if ( PADPROTO_VERSION2 != req_p->version ) {
 		return -1;
 	}
 
@@ -176,7 +176,12 @@ int32_t			err  = 0;
 	rply->type   = cmd->type | PADCMD_RPLY;
 	rply->nBytes = htons(sizeof(*rply));
 	rply->chnl   = me;
-	rply->status = htonl(err);
+	if ( err < 0 ) {
+		err = err < -255 ? 255 : -err;
+	} else {
+		err = 0;
+	}
+	rply->stat = err;
 	/* leave other fields untouched */
 
 	return 1;	/* packet should be sent back */
@@ -257,7 +262,7 @@ UdpCommPkt  p;
 	req          = udpCommBufPtr( p );
 	cmd          = (PadCommand)req->data;
 
-	req->version = PADPROTO_VERSION1;
+	req->version = PADPROTO_VERSION2;
 	req->nCmds   = who < 0 ? PADREQ_BCST : -who;
 
 	req->xid     = htonl(xid);

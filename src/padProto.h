@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.2 2009/12/15 23:27:39 strauman Exp $ */
+/* $Id: padProto.h,v 1.4 2010/01/22 14:15:22 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -75,7 +75,10 @@ typedef struct PadSimCommandRec_ {
 	int32_t		a,b,c,d;
 } __attribute__((may_alias)) PadSimCommandRec, *PadSimCommand;
 
-#define PADPROTO_VERSION1		0x31	/* some magic number           */
+/* Not used anymore
+#define PADPROTO_VERSION1		0x31
+ */
+#define PADPROTO_VERSION2		0x32
 
 #define PADREQ_BCST	(-128) /* Address all channels with a single command */
 
@@ -97,12 +100,11 @@ typedef struct PadReplyRec_ {
 	uint8_t		version;		/* Protocol version                    */
 	int8_t		type;			/* reply to command of 'type'          */
 	int8_t		chnl;			/* channel sending the reply           */
-	int8_t		r1;
-	uint16_t	nBytes;			/* size of reply                       */
-	uint16_t	timestampHi;
+	uint8_t		stat;           /* status code (errno)                 */
+	uint32_t	timestampHi;
 	uint32_t	timestampLo;
 	uint32_t	xid;            /* transaction 'id'                    */
-	int16_t		status;			/* error code (-errno)                 */
+	uint16_t	nBytes;			/* size of reply                       */
 	uint8_t		spec[2];		/* 2 bytes of command specific data    */
 	uint8_t		data[];         /* aligned on 16-byte boundary         */
 } __attribute__((may_alias)) PadReplyRec, *PadReply;

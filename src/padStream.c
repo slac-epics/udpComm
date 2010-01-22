@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.4 2010/01/19 00:32:00 strauman Exp $ */
+/* $Id: padStream.c,v 1.5 2010/01/22 14:16:30 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -151,7 +151,7 @@ int             rval;
 			rply->type            = PADCMD_STRM | PADCMD_RPLY;
 			rply->chnl            = me;
 			rply->nBytes          = htons(len);
-			rply->status          = 0;
+			rply->stat            = 0;
 			rply->strm_cmd_flags  = scmd->flags;
 			rply->strm_cmd_idx    = 0;
 

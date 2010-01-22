@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.3 2010/01/19 00:29:14 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.4 2010/01/22 14:16:00 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -45,8 +45,7 @@ int16_t tmp;
 	tmp = ntohs(p->nBytes);
 	printf("   nBytes: %"PRIi16" [payload %"PRIi16"]\n",  tmp, tmp-(int16_t)sizeof(*p));
 	printf("      XID: 0x%08x\n",           ntohl(p->xid)); 
-	tmp = ntohs(p->status);
-	printf("   status: %i (%s)\n",          tmp, strerror(-tmp));
+	printf("   status: %i (%s)\n",          p->stat, strerror(p->stat));
 	printf("     spec: 0x%02x, 0x%02x\n",   p->spec[0], p->spec[1]);
 }
 
@@ -127,7 +126,6 @@ streamdump(int sd)
 {
 UdpCommPkt        p;
 PadReply          rply;
-int16_t           err;
 int               i;
 int               d32;
 int               sz;
@@ -145,8 +143,8 @@ union {
 			fprintf(stderr,"Listener: received invalid reply 0x%02x\n", (uint8_t)rply->type);
 			break;
 		}
-		if ( (err=ntohs(rply->status)) ) {
-			fprintf(stderr,"Listener: received bad reply (%i -> %s)\n", err, strerror(-err));
+		if ( rply->stat ) {
+			fprintf(stderr,"Listener: received bad reply (%i -> %s)\n", rply->stat, strerror(rply->stat));
 			break;
 		}
 		/* Check matching endianness */

@@ -1,4 +1,13 @@
 20100122 (T.S.)
+ - src/padProto.h, src/padProto.c, src/drvPadUdpComm.c,
+   src/padProtoHost.c, src/hostStream.c, src/padStream.c:
+
+   **************************************************
+   PROTOCOL VERSION CHANGE: PadReply layout modified:
+   **************************************************
+    - reduced size of 'status' to 8-bits
+    - increased timestampHi -> 32-bits
+20100122 (T.S.)
  - src/drvPadUdpComm.c:
    PADRPLY_STRM_NSAMPLES macro arg is now pointer to reply.
    (Support for 32-bit stream data.)

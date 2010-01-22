@@ -146,7 +146,7 @@ strmCmdInit(int d32, int col_maj)
 {
 int i;
 
-	padStrmCmd.req.version = PADPROTO_VERSION1;
+	padStrmCmd.req.version = PADPROTO_VERSION2;
 	padStrmCmd.req.nCmds   = MAX_BPM;
 	padStrmCmd.req.cmdSize = sizeof(padStrmCmd.cmd[0]);
 	for ( i=0; i<MAX_BPM; i++ ) {
@@ -686,7 +686,7 @@ simInit()
 {
 int i;
 	/* Initialize the simulator command */
-	padSimulateCmd.req.version = PADPROTO_VERSION1;
+	padSimulateCmd.req.version = PADPROTO_VERSION2;
 	padSimulateCmd.req.nCmds   = MAX_BPM;
 	padSimulateCmd.req.cmdSize = sizeof(padSimulateCmd.simbpm[0]);
 

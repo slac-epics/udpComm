@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.3 2010/01/13 16:45:17 strauman Exp $ */
+/* $Id: padStream.c,v 1.4 2010/01/19 00:32:00 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -472,7 +472,7 @@ struct timeval now_tv;
 					rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
 					rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM,
 					uarg)) ) {
-		drvLan9118FifoWr(plan, data_p, nsamples*NCHNS*sizeof(int16_t));
+		drvLan9118FifoWr(plan, data_p, ((nsamples*NCHNS) << sampsizld));
 	}
 	/* else ['getdata' returned NULL] the getdata method already
 	 * wrote to the TX FIFO

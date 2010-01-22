@@ -56,7 +56,10 @@ typedef struct PadCommandRec_ {
 
 /* Sample size is sizeof(int16_t) */
 #define PADRPLY_STRM_NCHANNELS	4
-#define PADRPLY_STRM_NSAMPLES(nbytes) (((nbytes) - sizeof(PadReplyRec))/sizeof(int16_t)/PADRPLY_STRM_NCHANNELS)
+#define PADRPLY_STRM_LD_SZ(r)   (((r)->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? 2 : 1)
+#define PADRPLY_STRM_NSAMPLES(r)                                           \
+	(((ntohs((r)->nBytes) - sizeof(PadReplyRec)) >> PADRPLY_STRM_LD_SZ(r)) \
+	/PADRPLY_STRM_NCHANNELS)
 
 typedef struct PadStrmCommandRec_ {
 	int8_t		type;			/* PADCMD_XX                           */

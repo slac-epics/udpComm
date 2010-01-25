@@ -30,9 +30,6 @@
 extern "C" {
 #endif
 
-/* We calculate single-precision for now */
-typedef float BpmNumber;
-
 typedef struct DrvPadUdpCommCallbacksRec_ *DrvPadUdpCommCallbacks;
 
 /*
@@ -78,6 +75,8 @@ extern uint32_t  drvPadUdpCommPeerAddr;
 extern int drvPadUdpCommPort;
 /* timeout (in ms) when waiting for a reply or streamed data */
 extern int drvPadUdpCommTimeout;
+/* bitmask of channels that are currently in-use (not 'offline') -- READ_ONLY */
+extern volatile uint32_t drvPadUdpCommChannelsInUseMask;
 
 /* wavBufGet() obtains an opaque object.
  * In order to retrieve the 'PadReply' data structure

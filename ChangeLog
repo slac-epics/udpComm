@@ -1,3 +1,7 @@
+20100125 (T.S.)
+ - removed typedef of BpmNumber (-> Bpm app)
+ - public declaration of drvPadUdpCommChannelsInUseMask (used
+   by Bpm FCOM source).
 20100122 (T.S.)
  - configure/CONFIG: only include CONFIG_SITE if present.
 20100122 (T.S.)

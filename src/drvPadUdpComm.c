@@ -88,8 +88,8 @@ volatile DrvPadUdpCommHWTime drvPadUdpCommMaxCook = 0;
 #if MAX_BPM > 31
 #error "too many channels -- don't fit in 32-bit mask"
 #endif
-volatile uint32_t bpmUpToDate[NUM_DATA_KINDS] = { 0, 0, 0};
-volatile uint32_t drvPadUdpCommBpmInUse    = 0;
+volatile uint32_t bpmUpToDate[NUM_DATA_KINDS]    = { 0, 0, 0};
+volatile uint32_t drvPadUdpCommChannelsInUseMask = 0;
 
 static char simMode[MAX_BPM] = {0};
 
@@ -175,7 +175,7 @@ epicsTimeStamp ts;
 		return -1;
 
 	key = epicsInterruptLock();
-		drvPadUdpCommBpmInUse &= ~(1<<channel);
+		drvPadUdpCommChannelsInUseMask &= ~(1<<channel);
 	epicsInterruptUnlock(key);
 
 	epicsMutexLock(padStrmCmdLock);
@@ -231,7 +231,7 @@ epicsTimeStamp    ts;
 					drvPadUdpCommTimeout);
 
 	key = epicsInterruptLock();
-		drvPadUdpCommBpmInUse |= (1<<channel);
+		drvPadUdpCommChannelsInUseMask |= (1<<channel);
 	epicsInterruptUnlock(key);
 
 	return rval;
@@ -593,7 +593,7 @@ DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
 		key = epicsInterruptLock();
 			for ( j=0; j<NUM_DATA_KINDS; j++ ) {
 				if ( (cb->watchKinds & (1<<j)) ) {
-					timedout[j] = drvPadUdpCommBpmInUse & ~bpmUpToDate[j];
+					timedout[j] = drvPadUdpCommChannelsInUseMask & ~bpmUpToDate[j];
 					s  |= timedout[j];
 					sa &= timedout[j];
 					bpmUpToDate[j] = 0;

@@ -1,3 +1,6 @@
+20100202 (T.S.)
+ - src/udpComm.c: udpCommReturnPacket() failed to set length
+   in IP header.
 20100125 (T.S.)
  - removed typedef of BpmNumber (-> Bpm app)
  - public declaration of drvPadUdpCommChannelsInUseMask (used

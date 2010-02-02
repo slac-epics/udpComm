@@ -1,4 +1,4 @@
-/* $Id: udpComm.c,v 1.2 2009/12/15 23:28:59 strauman Exp $ */
+/* $Id: udpComm.c,v 1.3 2010/01/13 01:23:03 strauman Exp $ */
 
 #include <lanIpBasic.h>
 #include <netinet/in.h>
@@ -142,6 +142,8 @@ udpCommReturnPacket(UdpCommPkt p, int len)
 IpBscIf pif;
 	if ( (pif = udpSockGetBufIf(p)) ) {
 		udpSockHdrsReflect(&lpkt_udp_hdrs((LanIpPacket)p));	      /* point headers back to sender */
+		/* Set length */
+		lpkt_ip((LanIpPacket)p).len = htons(len + sizeof(IpHeaderRec) + sizeof(UdpHeaderRec));
 		lanIpBscSendBufRawIp(pif, p); /* send off                     */
 	}
 }

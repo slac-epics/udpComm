@@ -1,6 +1,8 @@
 20100202 (T.S.)
  - src/udpComm.c: udpCommReturnPacket() failed to set length
-   in IP header.
+   in UDP and IP header. This must be done before reflecting
+   the headers so that the IP header checksum is computed
+   correctly.
 20100125 (T.S.)
  - removed typedef of BpmNumber (-> Bpm app)
  - public declaration of drvPadUdpCommChannelsInUseMask (used

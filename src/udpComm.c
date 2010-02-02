@@ -1,4 +1,4 @@
-/* $Id: udpComm.c,v 1.3 2010/01/13 01:23:03 strauman Exp $ */
+/* $Id: udpComm.c,v 1.4 2010/02/02 19:59:12 strauman Exp $ */
 
 #include <lanIpBasic.h>
 #include <netinet/in.h>
@@ -141,9 +141,17 @@ udpCommReturnPacket(UdpCommPkt p, int len)
 {
 IpBscIf pif;
 	if ( (pif = udpSockGetBufIf(p)) ) {
-		udpSockHdrsReflect(&lpkt_udp_hdrs((LanIpPacket)p));	      /* point headers back to sender */
-		/* Set length */
-		lpkt_ip((LanIpPacket)p).len = htons(len + sizeof(IpHeaderRec) + sizeof(UdpHeaderRec));
-		lanIpBscSendBufRawIp(pif, p); /* send off                     */
+
+		/* Set length first (udpSockHdrsReflect calculates IP hdr checksum) */
+        len += sizeof(UdpHeaderRec);
+        lpkt_udp((LanIpPacket)p).len = htons(len);
+        len += sizeof(IpHeaderRec);
+        lpkt_ip((LanIpPacket)p).len  = htons(len);
+
+		/* Point headers back to sender and recalculate IP hdr checksum     */
+        udpSockHdrsReflect(&lpkt_udp_hdrs((LanIpPacket)p));
+
+		/* Send off                                                         */
+		lanIpBscSendBufRawIp(pif, p);
 	}
 }

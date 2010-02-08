@@ -1,4 +1,9 @@
 20100208 (T.S.)
+ - src/udpComm.h, src/udpCommBSD.c: Let udpCommConnect() treat broadcast
+   peer addresses the same as multicast peers (BSD semantics also reject
+   any incoming traffic if peer is a BC address). Documented this change
+   in udpComm.h (and README).
+20100208 (T.S.)
  - src/padStream.h, src/padStream.c:
     o Introduced typedef for stream 'getdata' routine.
     o Made padStreamSim_getdata a global function pointer variable

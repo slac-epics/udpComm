@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.3 2010/01/13 01:23:04 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.4 2010/01/19 00:34:46 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -15,6 +15,8 @@
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netinet/in.h>
+#include <net/if.h>
+#include <ifaddrs.h>
 
 #define ERRNONEG (errno ? -errno : -1)
 
@@ -23,6 +25,37 @@
 #define BUFALIGN(x)   DO_ALIGN(x,UDPCOMM_ALIGNMENT)
 
 #define ISMCAST(a) (((a) & 0xf0000000) == 0xe0000000)
+
+typedef struct {
+	struct sockaddr_in sina;
+} __attribute__((may_alias)) sin_a;
+
+static int ISBCAST(uint32_t addr)
+{
+struct ifaddrs *ifa, *p;
+sin_a          *psa;
+int             rval = 1;
+
+	if ( getifaddrs(&ifa) ) {
+		return -1;
+	}
+	
+	for ( p=ifa; p; p=p->ifa_next ) {
+		if (    (IFF_BROADCAST & p->ifa_flags)
+             &&  p->ifa_broadaddr
+             &&  AF_INET == p->ifa_broadaddr->sa_family ) {
+			psa = (sin_a*)p->ifa_broadaddr;
+			if ( psa->sina.sin_addr.s_addr == addr ) {
+				rval = 0;
+				break;
+			}
+		}
+	}
+
+	freeifaddrs(ifa);
+
+	return rval;
+}
 
 /* maintain same alignment of data-area 
  * which is seen when using lanIpBasic.
@@ -97,6 +130,16 @@ int                err, yes;
 		return err;
 	}
 
+#if 0
+	yes = 1;
+	if ( setsockopt(sd, IPPROTO_IP, IP_MULTICAST_LOOP, &yes, sizeof(yes)) ) {
+		err = ERRNONEG;
+		close(sd);
+		return err;
+	}
+#endif
+
+
 	if ( bind(sd, (void*)&me, sizeof(me)) ) {
 		err = ERRNONEG;
 		close(sd);
@@ -169,13 +212,20 @@ struct sockaddr_in they;
 
 	memset(&they, 0, sizeof(they));
 
-	/* Do not connect to a multicast destination
+	/* Do not connect to a multicast/broadcast destination
 	 * but remember destination in sdaux.
 	 */
-	if ( ISMCAST(ntohl(diaddr)) ) {
+	if ( ISMCAST(ntohl(diaddr)) || 0 == ISBCAST(diaddr) ) {
 		sdaux[sd].dipaddr = diaddr;
 		sdaux[sd].dport   = htons(port);
+#ifdef __linux__
+		/* linux docs say AF_UNSPEC is used to disconnect; 
+		 * RTEMS/BSD seems to use AF_INET/INADDR_ANY
+		 */
 		they.sin_family   = AF_UNSPEC;
+#else
+		they.sin_family   = AF_INET;
+#endif
 	} else {
 		sdaux[sd].dipaddr      = 0;
 		they.sin_family        = AF_INET;

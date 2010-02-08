@@ -1,4 +1,4 @@
-/* $Id: udpComm.h,v 1.2 2009/12/15 23:28:59 strauman Exp $ */
+/* $Id: udpComm.h,v 1.3 2010/01/13 01:23:03 strauman Exp $ */
 #ifndef UDPCOMM_LAYER_H
 #define UDPCOMM_LAYER_H
 
@@ -33,12 +33,12 @@ udpCommClose(int sd);
  * NOTES: 'dipaddr' is the peer's IP address in *network* byte order
  *        'port'    is the peer's port number in *host*   byte order
  *
- *        If 'dipaddr' is a IP multicast address then BSD 'connect'
- *        semantics are not obeyed. Instead, udpComm stores the
- *        destination address/port in memory and uses 'sendto' from
+ *        If 'dipaddr' is a IP multicast or broadcast address then
+ *        BSD 'connect' semantics are not obeyed. Instead, udpComm stores
+ *        the destination address/port in memory and uses 'sendto' from
  *        an unconnected socket. (Otherwise the socket would be unable
  *        to receive since only packets from the connected peer [a
- *        MC address in this case] would be accepted).
+ *        MC/BC address in this case] would be accepted).
  */
 int
 udpCommConnect(int sd, uint32_t diaddr, int port);

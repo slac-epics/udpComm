@@ -77,6 +77,11 @@ int32_t			err  = 0;
 		if ( PADREQ_BCST != n && -n != chnl )
 			return 0;
 		chnl = 0; /* first slot */
+	} else {
+		if ( chnl >= n ) {
+			/* 'me' not contained in array */
+			return 0;
+		}
 	}
 #ifdef DEBUG
 	if ( (padProtoDebug & DEBUG_PROTOHDL) ) {

@@ -1,3 +1,7 @@
+20100208 (T.S.)
+ - src/padProto.c: let padProtoHandler() ignore requests with
+   a command array too small to hold data for the active ('this')
+   channel.
 20100202 (T.S.)
  - src/udpComm.c: udpCommReturnPacket() failed to set length
    in UDP and IP header. This must be done before reflecting

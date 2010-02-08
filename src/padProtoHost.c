@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.4 2010/01/22 14:16:00 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.5 2010/01/22 16:29:06 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -294,7 +294,7 @@ int               err;
 #endif
 			break;
 
-			case 'b': theChannel = -128; break;
+			case 'b': theChannel = PADREQ_BCST; break;
 
 			case 'v': verbose   = 1; break;
 			case 'c': colMajor  = 1; type = PADCMD_STRM; break;
@@ -302,7 +302,7 @@ int               err;
 			case 'L': d32       = 1; type = PADCMD_STRM; break;
 
 			case 'C':
-				if ( 1 != sscanf(optarg,"%i",&theChannel) || theChannel > 255 || (theChannel < 0 && -128 != theChannel) ) {
+				if ( 1 != sscanf(optarg,"%i",&theChannel) || theChannel > 255 || (theChannel < 0 && PADREQ_BCST != theChannel) ) {
 					fprintf(stderr,"invalid channel #: '%s'\n",optarg);
 					usage(argv[0]);
 					exit(1);

@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.3 2010/01/13 16:45:18 strauman Exp $ */
+/* $Id: padStream.h,v 1.4 2010/01/19 00:32:00 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -46,8 +46,10 @@ padStreamPet(PadRequest req, uint32_t hostip);
 int
 padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip);
 
+typedef void * (*PadStreamGetdataProc)(void *packBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg);
+
 int
-padStreamSend(void * (*getdata)(void *packBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg), int type, int idx, void *uarg);
+padStreamSend(PadStreamGetdataProc getdata, int type, int idx, void *uarg);
 
 /* execute 'padStreamSend' with test data */
 int
@@ -69,19 +71,29 @@ typedef struct PadStripSimValRec_ {
 	int32_t	a,b,c,d;
 } PadStripSimValRec, *PadStripSimVal;
 
-/* 'getdata' callback for generating simulated waveforms.
- * The amplitudes are passed in 'uarg' which must be
- * a 'PadStripSimVal' pointer.
+/* 'getdata' callback for generating simulated waveforms
+ * Passing a delta function plus noise through a 2nd order
+ * bandpass filter.
+ * The amplitudes of the delta functions are passed in
+ * 'uarg' which must be a 'PadStripSimVal' pointer.
  */
 
 void *
-padStreamSim_getdata(void *packetBuffer,
+padStreamSim_iir2_getdata(void *packetBuffer,
 			int idx,
 			int nsamples,
 			int d32,
 			int little_endian,
 			int column_major,
 			void *uarg);
+
+/* Function pointer you can tweak to install your
+ * own simulation routine (called by padStreamSim()
+ * when a PADCMD_SIM is executed)
+ * Defaults to padStreamSim_iir2_getdata.
+ */
+extern PadStreamGetdataProc padStreamSim_getdata;
+
 
 /* Function that actually stops streaming transfer
  * - check for valid peer IP.

@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.5 2010/01/22 14:16:30 strauman Exp $ */
+/* $Id: padStream.c,v 1.6 2010/01/22 16:29:06 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -330,8 +330,10 @@ streamTest(void *packetBuffer,
 
 static PadStripSimValRec strips;
 
+PadStreamGetdataProc padStreamSim_getdata = padStreamSim_iir2_getdata;
+
 void *
-padStreamSim_getdata(void *packetBuffer,
+padStreamSim_iir2_getdata(void *packetBuffer,
 			int idx,
 			int nsamples,
 			int d32,
@@ -407,7 +409,7 @@ extern uint32_t drvLan9118RxIntBase;
 #endif
 
 int
-padStreamSend(void * (*getdata)(void *packBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg), int type, int idx, void *uarg)
+padStreamSend(PadStreamGetdataProc getdata, int type, int idx, void *uarg)
 {
 int            rval = 0;
 PadReply       rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);

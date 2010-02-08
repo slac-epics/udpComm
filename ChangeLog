@@ -1,4 +1,10 @@
 20100208 (T.S.)
+ - src/padStream.h, src/padStream.c:
+    o Introduced typedef for stream 'getdata' routine.
+    o Made padStreamSim_getdata a global function pointer variable
+      (defaults to padStreamSim_iir2_getdata) so that users could
+      install their own simulation 'getdata' routine.
+20100208 (T.S.)
  - src/padProtoHost.c: Use PADREQ_BCST macro instead of hardcoding -128.
 20100208 (T.S.)
  - src/padProto.c: let padProtoHandler() ignore requests with

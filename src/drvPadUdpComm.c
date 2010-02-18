@@ -733,12 +733,6 @@ int isVme;
 		return -1;
 	}
 
-	if ( (drvPadUdpCommSd = io.open(drvPadUdpCommPort-1)) < 0 ) {
-		epicsPrintf("drvPadUdpComm -- unable to create socket: %s\n",
-			strerror(-drvPadUdpCommSd));
-		return -1;
-	}
-
 	if ( isVme ) {
 		if ( ! &drvPadVmeCommIO || !drvPadVmeCommIO ) {
 			epicsPrintf("drvPadUdpComm -- no VME IO methods; is the vmeDigiComm driver linked to your application?\n");
@@ -746,6 +740,12 @@ int isVme;
 		} else {
 			io = *drvPadVmeCommIO;
 		}
+	}
+
+	if ( (drvPadUdpCommSd = io.open(drvPadUdpCommPort-1)) < 0 ) {
+		epicsPrintf("drvPadUdpComm -- unable to create socket: %s\n",
+			strerror(-drvPadUdpCommSd));
+		return -1;
 	}
 
 	strmCmdInit(drvPadUdpCommPrefs.d32, drvPadUdpCommPrefs.col_major);

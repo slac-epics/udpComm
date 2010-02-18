@@ -1,3 +1,6 @@
+20100218 (T.S.)
+ - BUGFIX: src/drvPadUdpComm.c: padUdpCommInit() must call io.open() only
+   *after* installing vmeUdpComm IO methods.
 20100208 (T.S.)
  - src/udpComm.h, src/udpCommBSD.c: Let udpCommConnect() treat broadcast
    peer addresses the same as multicast peers (BSD semantics also reject

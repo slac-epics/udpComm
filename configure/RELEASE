@@ -21,7 +21,7 @@ TEMPLATE_TOP=$(EPICS_BASE)/templates/makeBaseApp/top
 # ==============================================================
 # Define the cvs module version of EPICS BASE that you will use
 # =============================================================
-BASE_MODULE_VERSION=base-R3-14-8-2-lcls5
+BASE_MODULE_VERSION=base-R3-14-8-2-lcls6
 #BASE_MODULE_VERSION=base-3.14.10-lcls
 
 # =================================================================
@@ -33,8 +33,8 @@ EPICS_BASE=$(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
 
 EPICS_MODULES=$(EPICS_SITE_TOP)/modules
 
-EVENT_MODULE_VERSION=event-R3-1-6
-MISCUTILS_MODULE_VERSION=miscUtils-R2-1-0
+EVENT_MODULE_VERSION=event-R3-2-0
+MISCUTILS_MODULE_VERSION=miscUtils-R2-2-0
 
 EVENT=$(EPICS_MODULES)/event/$(EVENT_MODULE_VERSION)/
 MISCUTILS=$(EPICS_MODULES)/miscUtils/$(MISCUTILS_MODULE_VERSION)/

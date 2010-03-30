@@ -1,3 +1,9 @@
+20100330 (T.S.)
+ - FIX: src/padStream.c: padStreamSend() would often fail after a successful
+   padStreamStart(). This was because recent lanIpBasic only asynchronously
+   updates the ARP cache. Hence, it was likely that no valid entry was
+   present immediately after processing the padStreamStart().
+   To fix this we explicitly do a synchronous ARP lookup from padStreamStart().
 20100218 (T.S.)
  - BUGFIX: src/drvPadUdpComm.c: padUdpCommInit() must call io.open() only
    *after* installing vmeUdpComm IO methods.

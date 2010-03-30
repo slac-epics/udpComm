@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.6 2010/01/22 16:29:06 strauman Exp $ */
+/* $Id: padStream.c,v 1.7 2010/02/08 19:12:34 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -110,6 +110,7 @@ padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip)
 PadReply        rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
 int             len;
 int             rval;
+uint8_t         ena_dst_dummy[6];
 
 
 	if ( !intrf )
@@ -122,6 +123,15 @@ int             rval;
 		/* doesn't fit in one packet */
 		return -EINVAL;
 	}
+
+	/* Recent lanIpBasic asynchronously updates ARP cache. If want
+	 * to make sure that we have a valid cache entry then we better
+	 * do an explicit lookup here...
+	 */
+	rval = arpLookup(intrf, hostip, ena_dst_dummy, 0); 
+
+	if ( rval )
+		return rval;
 
 	LOCK();
 

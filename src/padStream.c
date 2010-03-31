@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.7 2010/02/08 19:12:34 strauman Exp $ */
+/* $Id: padStream.c,v 1.8 2010/03/30 22:46:08 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -110,7 +110,7 @@ padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip)
 PadReply        rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
 int             len;
 int             rval;
-uint8_t         ena_dst_dummy[6];
+LanIpPacket     pkt;
 
 
 	if ( !intrf )
@@ -124,11 +124,16 @@ uint8_t         ena_dst_dummy[6];
 		return -EINVAL;
 	}
 
-	/* Recent lanIpBasic asynchronously updates ARP cache. If want
+	/* Recent lanIpBasic asynchronously updates the ARP cache. If want
 	 * to make sure that we have a valid cache entry then we better
-	 * do an explicit lookup here...
+	 * do an arpPutEntry() here.
+	 * Unfortunately we have to hack-up a pointer to the ethernet
+	 * header of the request packet. Uuuugly!
+	 * The cleaner method would be issuing a synchronous arp lookup
+	 * but we want to avoid sending ARP requests at all cost.
 	 */
-	rval = arpLookup(intrf, hostip, ena_dst_dummy, 0); 
+	pkt  = (LanIpPacket)((void*)req - udpSockUdpBufPayload(0));
+	rval = arpPutEntry(intrf, hostip, lpkt_eth(pkt).src, 0); 
 
 	if ( rval )
 		return rval;

@@ -1,4 +1,7 @@
 20100330 (T.S.)
+ - MOD: src/padStream.c: Avoid an ARP lookup! Instead, use peer's MAC
+   address (from request packet) and issue arpPutEntry() to ensure.
+20100330 (T.S.)
  - FIX: src/padStream.c: padStreamSend() would often fail after a successful
    padStreamStart(). This was because recent lanIpBasic only asynchronously
    updates the ARP cache. Hence, it was likely that no valid entry was

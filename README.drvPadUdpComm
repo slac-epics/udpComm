@@ -1,0 +1,481 @@
+Information about the PAD protocol
+==================================
+
+The 'PAD protocol' runs on top of UDP.
+The PAD embedded controller acts as a 'PAD protocol server'
+reacting to 'requests' issued by a 'PAD protocol client'
+(usually a VME IOC or a linux box).
+
+
+PAD Request
+-----------
+
+A PAD request contains a timestamp (so that e.g., current
+EVR time may be communicated to the PAD), a 'transaction ID',
+protocol version number and commands for one or multiple
+PADs.
+Note that the protocol itself does not use the timestamp
+information itself and doesn't define the semantics.
+The data are simply returned to the sender.
+
+If a single request contains commands for multiple PADs then
+the request is either broadcast or posted to a multicast group.
+This is the normal mode of operation since it also provides
+a means for the PAD to 'learn' the client's MAC and IP addresses
+without any need for ARP.
+
+The layout of a PAD request is defined in the 'padProto.h' header.
+Note that all members of a PAD request are in network (AKA big-endian)
+byte order.
+
+PAD Addressing
+- - - - - - - -
+Since commands contained in a single request may be directed
+to multiple PADs the PAD protocol implements a simple
+addressing scheme:
+
+Each PAD subscribed to a single multicast group or residing
+in the same LAN broadcast domain is assigned by the system
+engineer a unique 'channel' ID which is a small integer.
+
+When the 'padProtoHandler()' loop is started on a PAD
+the channel ID must be passed as an argument.
+
+When the client wants to address a specific PAD then it
+must know its channel ID.
+
+There are three ways of addressing PAD(s) with a request:
+
+a) Broadcast. The request contains a single command struct
+   and the 'nCmds' member is set to PADREQ_BCST.
+   All PADs receiving the request will execute the same command.
+b) Single PAD. The request contains a single command struct.
+   The 'nCmds' member is set to the negative channel ID or
+   zero if the ID is zero. E.g., if the channel ID is '5' then
+   'nCmds' would have to be set to '-5'.
+    Only the addressed PAD would execute the command.
+c) Multiple PADs. The request contains multiple command structs
+   (which may identify different commands but are all padded
+   to the same size). In this case the PAD processing the
+   request uses its channel ID to index the array of command
+   structs to extract the command it should execute.
+
+Note that if a command is to be issued to a specific channel
+using method c) then there must be at least 'channel ID + 1'
+command structs in the request.
+
+PAD Reply
+---------
+By default, the PAD sends a reply back to the client upon
+completion of the command. Optionally, the client may set
+a flag (in the command sent embedded in the PAD Request)
+instructing the client that no reply is wanted. This saves
+CPU cycles and network bandwith.
+
+The Reply contains a copy of the timestamp and 'transaction ID'
+that were embedded in the request. Also, the reply identifies
+the PAD instance ('channel') sending the reply.
+The reply to some commands may contain 'payload' data.
+
+The layout of a PAD reply is defined in the 'padProto.h' header.
+Note that all members of a PAD reply are in network (AKA big-endian)
+byte order.
+
+PAD Command
+-----------
+
+A PAD Command is an aggregate of varying size, depending on
+the 'command type' since a specific command may require
+additional data to be communicated to the addressed PAD.
+
+If multiple commands are sent in a single request then all
+command 'struct's are padded to the size of the biggest
+command present in the request.
+
+The 'cmdSize' member in the request is set to the size
+of the individual commands (= size of the biggest one).
+
+Supported PAD Commands:
+
+  PADCMD_NOP      No operation. This command has no effect. Note that
+                  to reply is sent either (even if PADCMD_QUIET flag
+                  is not set).
+                  This command can be used as a placeholder when
+                  sending a request using method c) above. PADCMD_NOP
+                  can be sent to channels that should remain idle.
+
+  PADCMD_ECHO     Send the reply back. The intended use is for
+                  testing/debugging.
+
+  PADCMD_STRM     Start PAD 'streaming' mode. This is the main
+                  operating mode. See the section on 'streaming' 
+                  below for more information.
+
+  PADCMD_STOP     Stop PAD 'streaming' mode.
+
+  PADCMD_SPET     While in 'streaming' mode just update the timestamp
+                  and transaction ID (which are embedded in the streamed
+                  information).
+
+  PADCMD_SIM      Update simulation parameters and (optionally) send
+                  a packet with simulated stream data.
+                  See the sections on 'streaming' and 'simulation'
+                  below.
+
+Example for sending a PAD request
+
+  #include <padProto.h>
+  #include <arpa/inet.h> /* for htons/htonl & friends */
+  #include <sys/time.h>
+
+  /* Send NOP to channel 0 and ECHO to channel 1 */
+  struct {
+    PadRequestRec req;
+    PadCommandRec cmds[2];
+  } myreq;
+
+  struct {
+    PadReplyRec   rep;
+    uint8_t       payld[100];
+  } myrep;
+
+  struct timeval now;
+
+    gettimeofday(&now, 0);
+
+    myreq.req.version     = PADPROTO_VERSION2;
+    myreq.req.nCmds       = 2;
+    myreq.req.cmdSize     = sizeof(myreq.cmds[0]);
+    /* timestamp and XID are returned in the ECHO reply */
+    myreq.req.timestampHi = htonl(now.tv_sec);
+    myreq.req.timestampLo = htonl(now.tv_usec);
+    myreq.req.xid         = htonl(0xdeadbeef);
+    myreq.cmds[0].type    = PADCMD_NOP;
+    myreq.cmds[1].type    = PADCMD_ECHO;
+
+    write(socket_sd, &myreq, sizeof(myreq));
+
+    if ( read(socket_sd,  &myrep, sizeof(myrep) > 0 ) {
+      printf("Received reply to command type %u from channel %u\n",
+             PADCMD_GET(myrep.rep.type),
+             myrep.rep.chnl);
+      printf("Status: %u\n", myrep.rep.stat);
+	  printf("Timestamp was %u.%u\n", ntohl(myrep.rep.timestampHi), ntohl(myrep.rep.timestampLo));
+      printf("XID was %u\n", ntohl(myrep.rep.xid));
+      printf("%u bytes in payload\n", ntohs(myrep.rep.nBytes));
+    }
+
+	
+
+Furthermore, you must honor the 'endian_little' and 'col_major'
+flags as well as the new 'd32' flag.
+
+The callback can either write the correctly formated
+data itself to the FIFO / hardware or it can write to a memory buffer.
+In the former case the callback returns NULL, in the latter
+a pointer to the memory buffer.
+
+It is important that *exactly*
+
+nsamples * (d32 ? 4 : 2) * 4
+
+bytes are written (or contained in the buffer).
+
+If 'endian_little' is set then 32-bit (if d32 argument nonzero)
+or 16-bit (if d32 argument is zero) words must be written
+little-endian, otherwise big-endian.
+
+If 'col_major' is set (nonzero) then the data array has the
+layout
+
+data[nsamples][4]
+
+otherwise the layout is
+
+data[4][nsamples]
+
+Note that the callback has no way of ignoring any of
+those flags.
+If you don't want to implement a given flag then you
+can check for it in the start_stop_cb() and reject
+starting the stream from there.
+
+However, I recommend to always implement at least
+endian_little since that allows you to use the 'padProtoHost'
+tool from a linux-x86 host for development.
+
+The callback prototype has changed in the recent past.
+I recommend to pay attention to compiler warnings which
+would bring this change to your attention.
+
+
+Look at your 'getProcessedData' callback. If row-major data is
+requested then 'getProcessedData()' calls 'myDrvPadReadFifosRowMajor()'
+and the latter routine does not honor 'nsamples' (or 'n' as the argument
+is called here), i.e., it copies 12   32-bit words to the transmitter wrongfully
+ignoring the requested number of samples.
+
+The correct way to implement streaming here would be:
+
+The stream must be started differently, depending if you operate
+in raw-mode or processed-mode:
+
+raw mode:
+
+  start stream for 128 samples, d32 flag (DrvPadUdpCommPrefsRec) false
+
+  the stream start_stop_cb should check that d32 is clear and return nonzero
+  if this is not the case.
+
+  the 'getdata' callback can probably remain what it was when the BPM code
+  was cloned.
+
+processed mode
+
+  start stream for 3 samples, d32 flag set
+
+  start_stop_cb should check d32 flag and return nonzero if clear. If you
+  don't support byte-swapping and/or a transposed/col-major array
+  (not supporting the latter is  OK) then the start_stop_cb should
+  reject the unsupported modes.
+
+  'getdata' callback should copy 'nsamples*4' 32-bit words and byte-swap
+  if little-endian data is requested.
+
+In your special case you could actually use the requested word size
+(d32 vs. d16) do indicate the desired 'mode' (see example below).
+
+HTH
+-- Till
+
+Example start_stop_cb().
+
+int
+my_start_stop_cb(PadStrmComand scmd, void *uarg)
+{
+ if ( scmd ) {
+  /* Start Stream */
+
+   if ( (scmd->flags & PADCMD_STRM_FLAG_32) ) {
+     /* assume processed mode */
+     if ( (scmd->flags & PADCMD_STRM_FLAG_CM) ) {
+       fprintf(stderr,"Col-major operation not supported\n");
+       return -ENOTSUP;
+     }
+     /* OK. Could verify that
+      * ntohl(scmd->nsamples) matches what we expect
+      */
+   } else {
+     /* assume raw mode; OK. */
+   }
+ } else {
+   /* Stop Stream  */
+       }
+ return 0;
+}
+
+Example getdata() callback:
+
+void *
+getdata(void *pktBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg)
+{
+ if ( d32 ) {
+   /* "Processed mode" */
+
+   /* Cannot be colMajor since we rejected that in start_stop_cb */
+   if ( endianLittle ) {
+     /* Copy byte-swapped data (nsamples * 4 32-bit words) to FIFO */
+     return 0;
+   } else {
+     /* Since data is already in memory buffer we can let the caller
+      * do the copying (only more efficient to write to TX FIFO ourselves
+      * if we compute data and hold it in a register already, e.g.,
+      * because we byte-swapped or read from ADC FIFO.)
+      */
+     return (void*)memBuffer;
+   }
+ } else {
+   /* "Raw mode"      */
+   if ( colMajor )
+     drvPadReadFifosColMajor( LAN9118_FIFO_HACK, nsamples*4, endianLittle);
+   else
+     drvPadReadFifosRowMajor( LAN9118_FIFO_HACK, nsamples*4, endianLittle);
+ }
+ return 0;
+}
+
+As the -ENOSPC return code indicates the failure is due to there
+not be sufficient space in the TX FIFO for the packet you're trying
+to send.
+
+Two possible causes come to my mind:
+
+1)
+You're calling padStreamSend() repeatedly with so big packets
+that the TX harware can't keep up and the FIFO fills.
+Of course, this becomes more likely to happen as you approach
+100mbit/s ~ 10MB/s
+
+2)
+Your getdata callback is wrong and the data in the FIFO becomes
+screwed up and gets stuck so that subsequent attempts to send
+fill the FIFO completely.
+
+I suspect that the second is what you're seeing.
+
+
+
+Kim, Kukhee wrote:
+> Hi Till;
+>
+>
+> I think, I need to adjust the nsamples.
+>   
+Yes.
+> The LLRF PAD is sending only a few samples, but the default value is 128
+> for the nsamples.
+>   
+It's not the default value. You define the number of samples
+in the DrvPadUdpCommPrefsRec struct (on the IOC/VME side).
+
+If the 'nsamples_dynamic' flag is set then you indicate that
+it is OK for the application (again on the IOC/VME side) to
+change the number of samples at run-time (via drvPadUdpCommStrmSetNSamples()).
+
+If the flag is clear then the number of samples is fixed (which
+probably is what you want).
+
+Again: the number of samples is 'per channel'. The PadStream
+protocol assumes a 4-channel digitizer. Of course, you can use
+the protocol for your own purpose (that's what you do when you
+ship processed data) but the protocol still assumes 4 channels.
+
+Hence you transmit 4*nsamples numbers and the 'getdata'
+callback MUST exactly copy that amount to the Fifo (or hold
+it in a memory buffer if it wants the caller of 'getdata' to write
+to the fifo).
+
+If the 'd32' flag (again in the DrvPadUdpCommPrefsRec struct)
+is set then the numbers/samples are 32-bit, 16-bit otherwise.
+> The getdata callback in the LLRF PAD only put 48 byes into the hardware
+> fifo.
+It should *always* honor 'nsamples' (and pad if necessary).
+>  But, the drvLan9118TxPacket gave more than 1k (1088 bytes
+> exactly).
+
+>  So, the fifo could be screwed up.
+>   
+Yes.
+> I think my packet size is 112 bytes.
+> 44 byes (udp header) + 20 byes (data header) + 48 bytes (PAD data).
+>   
+Never mind the packet size. You just *have to* honor
+nsamples that's all you have to do.
+> So, I want to adjust the nsamples.
+> I tried to use drvUdpCommSetNSamples() API.   
+See above. You should be able to just set it in the 'PrefsRec'.
+> 1. Is it correct one to adjust the nsamples variable?
+>   
+Probably not.
+> 2. When try to use the drvUdpCommSetNSamples, I got symbol name problem.
+> Actually, the API has been defined in the libpadUdpCommSupport.a.
+> Unfortunately, this module contains some EVR symbols.
+> But, we don't have EVR library for the coldFire.
+>   
+This routine is called on the VME/IOC side. The PAD
+has no say in this.
+
+VME requests a stream of given
+  - nsamples
+  - word-size (32/16)
+  - endianness
+  - matrix layout (row-major/col-major)
+
+The PAD can only reject a request from the 'start_stop_cb'
+(letting it return nonzero). The PAD has no way to modify
+the request. Finally 'getdata' ALWAYS MUST provide the
+requested data EXACTLY as requested (nsamples/d32/littleEndian/colMajor)
+
+HTH
+-- Till 
+
+You don't have to do anything (which is the advantage of using
+this shared code). The 'padUdpHandler' is smart enough to
+deal with the case of the peer being a multicast address.
+
+However, you do need to somehow figure out what MC address
+to use. This is an administrative decision and we came to the
+conclusion that we use the startup script and DNS for this.
+
+We should at some point have a DNS name for each group
+and your startup script could do e.g.,
+
+setenv("PADMCGRP", "dns_name_of_group", 1)
+
+Your code (look at Bpm/padBpmApp/src/devWfPadBpm.c) can
+e.g., do
+
+    arg->mcaddr = 0; /* => use broadcast */
+    if ( !(mcgrp = getenv("PADMCGRP")) ) {
+        epicsPrintf("Warning: 'PADMCGRP' envvar unset; expecting to use BROADCAST for IOC communication\n");
+    } else {
+        if ( hostToIPAddr(mcgrp, &ina) ) {
+            epicsPrintf("Error: Lookup for '%s' failed -- unable to start UDP listener\n", mcgrp);
+            goto bail;
+        }
+        arg->mcaddr = ina.s_addr;
+        epicsPrintf("UDP Listener uses IP Multicast (%s) -- reception of broadcast traffic DISABLED\n", mcgrp);
+        drvLan9118BcFilterSet(lanIpBscIfGetDrv(lanIpIf), 1);
+    }
+
+And later the padUdpHandler is called:
+ 
+     padUdpHandler(arg->mcaddr, ...)
+
+Note that as a precaution the code disables reception of any FNET broadcast
+traffic at the EIOC's 2ndary NIC hardware. This is to protect the NIC and CPU
+from excessive traffic (which in theory shouldn't happen but you never know...)
+This means that it will be IMPOSSIBLE to use ARP for finding the EIOC's (2ndary) IP
+address (primary networking is not affected, of course).
+
+
+Note that this code works if you don't have a DNS name (e.g., for development)
+- you just use a string with and address in 'dot' notation, e.g., "239.255.254.40"
+
+WATCHDOG:
+--------
+drvPadUdpComm (if you're using that) already supports/implements
+such a watchdog:
+
+A watchdog task periodically executes (by default every 10s but
+there is a global variable you can change) code which checks
+which channels are 'on-line' AND have received any kind of data
+during the last 20s.
+
+When you execute drvPadUdpCommStartReq( channel ), i.e., when a PAD
+is requested to start streaming data then the 'channel' is marked 'on-line'.
+Similarly, when you call drvPadUdpCommStopReq( channel) then the
+channel is marked 'off-line'.
+
+Whenever your 'cook' callback that processes the raw data
+returns a value >=0 then a flag is set ( 3 flags are maintained,
+one for each 'kind'/flavor of data) indicating that 'data arrived'
+(it is this flag that is checked by the watchdog task).
+
+Note that for now your cook callback should only return -1,0, or 1
+since other values may have special semantics in the future:
+
+0 : (OK) -> set 'data arrived' flag and request record IO/scan-list
+     to be scanned.
+1 : (got data but e.g., there is no beam) -> set 'data arrived' flag
+     but omit scanning the record list
+-1: -> do NOT set 'data arrived' flag, do NOT scan record list.
+
+When the watchdog task finds that no data have of any 'kind'
+have been received (i.e., the 'cook' callback has never returned
+>=0 for any 'kind ' of data then your 'watchdog' callback is
+executed. You can use this callback to take appropriate action.
+
+
+HTH
+-- Till

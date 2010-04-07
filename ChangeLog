@@ -1,3 +1,13 @@
+20100407 (T.S.)
+ - Added README.drvPadUdpComm: (rudimentary documentation).
+20100407 (T.S.)
+ - src/drvPadUdpComm.h, src/drvPadUdpComm.c: Support special return
+   values for 'cook' callback which cause the raw data to be
+   posted to dedicated wavBufs for debugging purposes.
+
+   Added definitions for 'cook' callback return values.
+20100407 (T.S.)
+ - src/wavBuf.h: Increased number of 'KINDS' to 10.
 20100330 (T.S.)
  - MOD: src/padStream.c: Avoid an ARP lookup! Instead, use peer's MAC
    address (from request packet) and issue arpPutEntry() to ensure.

@@ -1,6 +1,6 @@
 #ifndef  WAVBUF_H
 #define  WAVBUF_H
-/* $Id: wavBuf.h,v 1.2 2008-11-25 01:39:43 strauman Exp $ */
+/* $Id: wavBuf.h,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,7 +12,7 @@ extern "C" {
 #include <dbCommon.h>
 
 #define WAV_BUF_NUM_SLOTS	32
-#define WAV_BUF_NUM_KINDS	5
+#define WAV_BUF_NUM_KINDS	10
 
 /* Types */
 #define WavBufNone  	0

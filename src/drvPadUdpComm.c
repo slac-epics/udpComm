@@ -78,8 +78,6 @@ uint32_t	roundtripAvg = 0;
 
 #endif
 
-void
-padUdpCommPostRaw(UdpCommPkt pkt, PadDataKind kind);
 
 uint32_t	drvPadUdpCommDebug = 0;
 
@@ -401,11 +399,56 @@ epicsTimeStamp ts;
 }
 
 static void
+drvPadUdpCommPostRaw(UdpCommPkt pkt, PadDataKind kind)
+{
+WavBuf   pb;
+PadReply rply;
+unsigned chan;
+unsigned nsamples;
+
+	if ( !pkt )
+		return;
+
+	rply     = padReplyFind(pkt);
+
+	chan     = rply->chnl;
+	nsamples = PADRPLY_STRM_NSAMPLES(rply);
+
+	if ( !(pb = wavBufAlloc()) ) {
+		/* Just drop */
+		epicsPrintf("drvPadUdpCommListener: unable to get waveform buf header -- configure more!!\n");
+		io.free(pkt);
+		return;
+	}
+	pb->free = padDataFree; 
+	if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
+		pb->flags = WavBufFlagCM;
+	} else {
+		pb->flags = 0;
+	}
+	pb->type    = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16;
+	pb->m       = 4;
+	pb->n       = nsamples;
+	pb->usrData = pkt;
+	pb->data    = rply->data;
+	pb->ts.secPastEpoch = ntohl(rply->timestampHi);
+	pb->ts.nsec         = ntohl(rply->timestampLo);
+
+	/* send buffer for waveforms to pick up */
+	if ( 0 == wavBufPost(chan, kind, pb) ) {
+			pkt = 0;
+			pb  = 0;
+	} else {
+		/* This releases the packet, too */
+		wavBufFree(pb);
+	}
+}
+
+static void
 drvPadUdpCommListener(void *arg)
 {
 int         sd;
 UdpCommPkt  pkt = 0;
-WavBuf      pb  = 0;
 PadReply    rply;
 PadDataKind kind;
 unsigned    chan;
@@ -520,37 +563,26 @@ DrvPadUdpCommHWTime    tDiff;
 			key = epicsInterruptLock();
 				bpmUpToDate[kind] |= (1<<chan);
 			epicsInterruptUnlock(key);
+
+			switch ( cook_stat ) {
+				case PAD_UDPCOMM_COOK_STAT_DEBUG_DOSCAN:
+					cook_stat = 0;
+					/* fall thru */
+				case PAD_UDPCOMM_COOK_STAT_DEBUG_NOSCAN:
+					drvPadUdpCommPostRaw( pkt, WAV_BUF_NUM_KINDS - NUM_DATA_KINDS + kind );
+					pkt = 0;
+					/* fall thru */
+				default:
+				break;
+			}
 		}
 
 		if ( cook_stat )
 			continue;
 
-		if ( ! pb ) {
-			if ( !(pb = wavBufAlloc()) ) {
-				/* Just drop */
-				epicsPrintf("drvPadUdpCommListener: unable to get waveform buf header -- configure more!!\n");
-				continue;
-			}
-			pb->free = padDataFree; 
-		}
-		if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
-			pb->flags = WavBufFlagCM;
-		} else {
-			pb->flags = 0;
-		}
-		pb->type    = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16;
-		pb->m       = 4;
-		pb->n       = nsamples;
-		pb->usrData = pkt;
-		pb->data    = rply->data;
-		pb->ts.secPastEpoch = ntohl(rply->timestampHi);
-		pb->ts.nsec         = ntohl(rply->timestampLo);
-
-		/* send buffer for waveforms to pick up */
-		if ( 0 == wavBufPost(chan, kind, pb) ) {
-			pkt = 0;
-			pb  = 0;
-		}
+		/* If pkt is NULL this doesn't do anything */
+		drvPadUdpCommPostRaw( pkt, kind );
+		pkt = 0;
 
 		/* Scan lists only on the beam pulse. Waveforms
 		 * listening to the cal pulses will also be on
@@ -917,49 +949,3 @@ drvPadUdpCommRegistrar(void)
 	iocshRegister(&drvPadUdpCommSetupDesc, drvPadUdpCommSetupFunc);
 }
 epicsExportRegistrar(drvPadUdpCommRegistrar);
-
-void
-padUdpCommPostRaw(UdpCommPkt pkt, PadDataKind kind)
-{
-WavBuf   pb;
-PadReply rply;
-unsigned chan;
-unsigned nsamples;
-
-	if ( !pkt )
-		return;
-
-	rply = padReplyFind(pkt);
-
-	chan     = rply->chnl;
-	nsamples = PADRPLY_STRM_NSAMPLES(rply);
-
-	if ( !(pb = wavBufAlloc()) ) {
-		/* Just drop */
-		epicsPrintf("drvPadUdpCommListener: unable to get waveform buf header -- configure more!!\n");
-		io.free(pkt);
-		return;
-	}
-	pb->type = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16;
-	pb->free = padDataFree; 
-	if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
-		pb->flags = WavBufFlagCM;
-	} else {
-		pb->flags = 0;
-	}
-	pb->m = 4;
-	pb->n = nsamples;
-	pb->usrData = pkt;
-	pb->data    = rply->data;
-	pb->ts.secPastEpoch = ntohl(rply->timestampHi);
-	pb->ts.nsec         = ntohl(rply->timestampLo);
-
-	/* send buffer for waveforms to pick up */
-	if ( 0 == wavBufPost(chan, kind, pb) ) {
-			pkt = 0;
-			pb  = 0;
-	} else {
-		/* This releases the packet, too */
-		wavBufFree(pb);
-	}
-}

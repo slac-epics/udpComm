@@ -46,6 +46,28 @@ typedef struct DrvPadUdpCommPrefsRec_ {
 	int col_major;
 } DrvPadUdpCommPrefsRec, *DrvPadUdpCommPrefs;
 
+/* 'cook' callback may return either of these
+ * in order to have the raw data posted to 'wavBuf'
+ * of kind WAV_BUF_NUM_KINDS - NUM_DATA_KINDS + 'kind'.
+ */
+/* Post raw data but skip scanning the records
+ * which pick up the cooked data.
+ */
+#define PAD_UDPCOMM_COOK_STAT_DEBUG_NOSCAN	22
+/* Post raw data but have the records scanned
+ * to pick up the cooked data.
+ */
+#define PAD_UDPCOMM_COOK_STAT_DEBUG_DOSCAN	23
+
+/* Set 'data received' flag and do request scanlist to be processed    */
+#define PAD_UDPCOMM_COOK_STAT_OK             0
+/* Set 'data received' flag but don't request scanlist to be processed */
+#define PAD_UDPCOMM_COOK_STAT_NOSCAN         1
+/* Do not set 'ata received' flag, do not request scanlist to be
+ * processed and do not post raw data
+ */
+#define PAD_UDPCOMM_COOK_STAT_NOSCAN_NOPOST -1
+
 typedef struct DrvPadUdpCommCallbacksRec_ {
 	/* 'init' is executed from the UDP comm listener task which
 	 * also executes the 'cook' callback.

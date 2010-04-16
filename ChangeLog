@@ -1,3 +1,11 @@
+20100416 (T.S.)
+ - src/udpComm.h, src/udpCommBSD.c: REMOVED wrong UDPCOMM_ALIGNMENT
+   definition. The payload of lanIpBasic UDP packetes is ***NOT***
+   aligned but at a well defined offset (-4) from an alignment 
+   boundary.
+   In order to alert users the UDPCOMM_ALIGNMENT symbol was replaced
+   by UDPCOMM_DATA_ALGN and UDPCOMM_DATA_ALGN_OFF, the offset that 
+   takes you to an alignment boundary was added.
 20100407 (T.S.)
  - Added README.drvPadUdpComm: (rudimentary documentation).
 20100407 (T.S.)

@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.4 2010/01/19 00:34:46 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.5 2010/02/08 19:14:39 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -22,7 +22,7 @@
 
 
 #define DO_ALIGN(x,a) (((uintptr_t)(x) + ((a)-1)) & ~((a)-1))
-#define BUFALIGN(x)   DO_ALIGN(x,UDPCOMM_ALIGNMENT)
+#define BUFALIGN(x)   DO_ALIGN(x,UDPCOMM_DATA_ALGN)
 
 #define ISMCAST(a) (((a) & 0xf0000000) == 0xe0000000)
 
@@ -62,7 +62,7 @@ int             rval = 1;
  * Pad # of bytes consumed by ethernet, IP
  * and UDP headers.
  */
-#define PADSZ         (16+20+8)
+#define PADSZ         (UDPCOMM_DATA_ALGN - UDPCOMM_DATA_ALGN_OFF)
 
 typedef struct {
 	char   data[UDPCOMM_PKTSZ];
@@ -90,7 +90,7 @@ udpCommAllocPacket()
 void          *p_raw;
 UdpCommBSDPkt *p;
 
-	p_raw      = malloc(sizeof(*p) + PADSZ + UDPCOMM_ALIGNMENT-1);
+	p_raw      = malloc(sizeof(*p) + PADSZ + UDPCOMM_DATA_ALGN-1);
 
 	if ( !p_raw )
 		return 0;

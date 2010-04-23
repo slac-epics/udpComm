@@ -1,3 +1,27 @@
+udpComm-R1-2-0:  (2010/04/23, T.S.) This release fixes bugs:
+                  * udpComm packet payload is NOT ALIGNED
+                    to the boundary promised by
+                    udpComm.h: UDPCOMM_ALIGNMENT
+                    In reality, the payload is at a well-known
+                    offset from an alignment boundary.
+                    To clarify this and force users who used
+                    UDPCOMM_ALIGNMENT this symbol was *removed*
+                    and replace ty UDPCOMM_DATA_ALGN_OFF and
+                    UDPCOMM_DATA_ALGN which define the offset from
+                    and the alignment boundary, respectively.
+
+                  * padStreamStart() would often fail immediately
+                    after a successful padStreamStart(). This was
+                    because recent lanIpBasic only asynchronously
+                    updates the ARP cache. FIXED by internally creating
+                    an ARP cache entry.
+
+                 Enhancements:
+ 
+                  * Added rudimentary drvPadUdpComm documentation:
+                    README.drvPadUdpComm; additional documentation is
+                    in the form of more detailed comments in header files.
+
 udpComm-R1-1-0:  Built against rtems 4.9.4 and EPICS BASE:
                  base-R3-14-8-2-lcls6
 

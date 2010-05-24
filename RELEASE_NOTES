@@ -1,3 +1,9 @@
+udpComm-R1-3-0:  (2010/05/24, T.S.) This release adds a few diagnostics:
+                  * 'padStream' statistics counters reporting how
+                    many stream packets were sent, how often the stream
+                    timestamp is updated and recording the max. delay
+                    between updates.
+                  
 udpComm-R1-2-0:  (2010/04/23, T.S.) This release fixes bugs:
                   * udpComm packet payload is NOT ALIGNED
                     to the boundary promised by

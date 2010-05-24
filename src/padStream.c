@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.8 2010/03/30 22:46:08 strauman Exp $ */
+/* $Id: padStream.c,v 1.9 2010/03/31 18:12:32 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -22,9 +22,17 @@
 
 int padStreamDebug = 0;
 
-time_t padStreamTimeoutSecs = 60;
+time_t padStreamTimeoutSecs  = 60;
 
-time_t padStreamPetTime;
+time_t   padStreamPetTime    = 0;
+uint32_t padStreamPetTimeUs  = 0;
+
+uint32_t maxStreamSendDelay1 = 0;
+uint32_t maxStreamSendDelay2 = 0;
+uint32_t padStreamPktSent    = 0;
+uint32_t padStreamPetted     = 0;
+uint32_t padStreamPetDiffMax = 0;
+
 
 /* Data stream implementation. This could all be done over the
  * udpSock abstraction but less efficiently since we would have
@@ -97,11 +105,21 @@ static void
 dopet(PadRequest req, PadReply rply)
 {
 struct timeval now;
+uint32_t       diff;
 	rply->timestampHi = req->timestampHi;
 	rply->timestampLo = req->timestampLo;
 	rply->xid         = req->xid;
 	gettimeofday(&now, 0);
-	padStreamPetTime = now.tv_sec;
+
+	diff  = (now.tv_sec - padStreamPetTime) * 1000;
+	diff +=  now.tv_usec - padStreamPetTimeUs;
+
+	if ( diff > padStreamPetDiffMax )
+		padStreamPetDiffMax = diff;
+
+	padStreamPetTime   = now.tv_sec;
+	padStreamPetTimeUs = now.tv_usec;
+	padStreamPetted++;
 }
 
 int
@@ -413,9 +431,6 @@ static unsigned long noise = 1;
 	return packetBuffer;
 }
 
-uint32_t maxStreamSendDelay1 = 0;
-uint32_t maxStreamSendDelay2 = 0;
-
 #ifdef __mcf5200__
 #include "hwtmr.h"
 
@@ -498,6 +513,8 @@ struct timeval now_tv;
 	drvLan9118TxUnlock(plan);
 
 	UNLOCK();
+
+	padStreamPktSent++;
 
 #ifdef __mcf5200__
 	now = Read_hwtimer() - drvLan9118RxIntBase;

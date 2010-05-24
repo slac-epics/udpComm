@@ -1,4 +1,4 @@
-Sheng.
+$Id$
 
 The 'udpComm' API is very similar to traditional socket programming
 but slightly simplified.
@@ -7,10 +7,7 @@ The 'udpComm' API is implemented for both, communication over regular
 BSD sockets and the dedicated 'lanIpBasic' mini-stack.
 
 If you write you application using udpComm then you can later switch
-to lanIpBasic w/o modifying your app. (lanIpBasic with multicast has
-not been released yet but udpComm over BSD is available and supports
-multicasting [udpComm + lanIpBasic without MC is currently used in
-production].)
+to lanIpBasic w/o modifying your app.
 
 Also, 'udpComm' provides buffer management (always for RX, optional for TX)
 so that copying from/to a user area can be avoided.
@@ -22,19 +19,26 @@ The API is described in
 To use udpComm you need the following:
 
 1) Use rtems-4-9-1-p4 (available under /afs/slac/package/rtems/4.9.1/)
+   or later.
    AFAIK, Ernest is copying this release over to the 'builder'.
 
-2) load the module (it's only a .o file but that doesn't matter)
-
-   
-/afs/slac/g/lcls/epics/modules/fcom/devl/src/O.RTEMS-beatnik/udpCommBSD.o
+2) Add a definition for UDPCOMM to your application's RELEASE file.
 
 3) Your application must
 
-#include <udpComm.h>
+      #include <udpComm.h>
 
-and make sure the header from the path above (and not an older version)
-is used.
+4) Add 'udpComm' (when using 'lanIpBasic' -- RTEMS only) or
+   'udpCommBSD' (using BSD networking -- supported under RTEMS, linux, ...)
+   to the list of libraries used by your application (in your app's Makefile).
+
+   E.g., the BPM application can run on linux (for testing + development,
+   i.e., w/o EVR) and on RTEMS (real VME IOC).
+   Hence, in my Makefile I say
+
+     bpmApp_LIBS_DEFAULT += udpCommBSD
+     bpmApp_LIBS_RTEMS   += udpComm
+ 
 
 API DESCRIPTION
 ---------------
@@ -97,19 +101,18 @@ stores the peer's address so that it doesn't have to be
 specified with every 'send' operation.
 
 NOTE: the semantics of udpCommConnect() DIFFER from BSD semantics
-      if the 'peer' address is a MC group:
+      if the 'peer' address is a MC group or a broadcast address:
       Connected BSD UDP sockets ONLY accept incoming traffic with
       a source IP address equal to the connected peer's. This means
-      that a BSD UDP socket which is connected to a MC group will NEVER
-      see any incoming traffic (because a packet is never sent *by* a
-      MC group).
+      that a BSD UDP socket which is connected to a MC group (or
+      a broadcast address) will NEVER see any incoming traffic
+      (because a packet is never sent *by* a MC group or BC address).
 
-      However, a udpComm socket, when connected to a MC address
+      However, a udpComm socket, when connected to a MC/BC address
       uses the peer information only for sending and will receive
       traffic from any source (IP or port). This applies only if
-      the peer IP is a MC group. In other cases (peer is ordinary
-      IP unicast or LAN broadcast address) then BSD semantics
-      are observed.
+      the peer IP is a MC group or BC address. In other cases
+      (peer is ordinary IP unicast) then BSD semantics are observed.
       
 Note that IP addresses are in network- port numbers in host-
 byte order.
@@ -160,8 +163,12 @@ you can get some ASCII info:
       fprintf( stderr, "Some call failed: %s\n", strerror( - status ) );
    }
 
-MULTIPLE INTERFACES
--------------------
+MULTIPLE INTERFACES WITH BSD TCP/IP STACK
+-----------------------------------------
+
+************************************************************
+THIS SECTION ONLY APPLYS IF YOU ARE USING 'TRUE' BSD SOCKETS
+************************************************************
 
 Setup
 - - -
@@ -224,7 +231,3 @@ combination with multiple NICs is used was deemed rather rare.
 
   udpCommMcastIfAddr = inet_addr("192.168.0.30");
   udpSockJoinMcast( sd, inet_addr("239.255.3.3") );
-
-HTH -- Don't hesitate to contact me if you need more information
-
--- Till

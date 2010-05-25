@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.9 2010/03/31 18:12:32 strauman Exp $ */
+/* $Id: padStream.c,v 1.10 2010/05/24 14:20:49 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -32,6 +32,8 @@ uint32_t maxStreamSendDelay2 = 0;
 uint32_t padStreamPktSent    = 0;
 uint32_t padStreamPetted     = 0;
 uint32_t padStreamPetDiffMax = 0;
+uint32_t padStreamPetDiffMin = -1;
+uint32_t padStreamPetDiffAvg = 0;
 
 
 /* Data stream implementation. This could all be done over the
@@ -111,11 +113,16 @@ uint32_t       diff;
 	rply->xid         = req->xid;
 	gettimeofday(&now, 0);
 
-	diff  = (now.tv_sec - padStreamPetTime) * 1000;
+	diff  = (now.tv_sec - padStreamPetTime) * 1000000;
 	diff +=  now.tv_usec - padStreamPetTimeUs;
 
 	if ( diff > padStreamPetDiffMax )
 		padStreamPetDiffMax = diff;
+
+	if ( diff < padStreamPetDiffMin )
+		padStreamPetDiffMin = diff;
+
+	padStreamPetDiffAvg += ((int)(diff - padStreamPetDiffAvg)) >> 8;
 
 	padStreamPetTime   = now.tv_sec;
 	padStreamPetTimeUs = now.tv_usec;

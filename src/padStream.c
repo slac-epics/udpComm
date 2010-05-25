@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.10 2010/05/24 14:20:49 strauman Exp $ */
+/* $Id: padStream.c,v 1.11 2010/05/25 18:18:02 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -29,6 +29,7 @@ uint32_t padStreamPetTimeUs  = 0;
 
 uint32_t maxStreamSendDelay1 = 0;
 uint32_t maxStreamSendDelay2 = 0;
+uint32_t maxStreamSendDelay3 = 0;
 uint32_t padStreamPktSent    = 0;
 uint32_t padStreamPetted     = 0;
 uint32_t padStreamPetDiffMax = 0;
@@ -478,6 +479,13 @@ struct timeval now_tv;
 		UNLOCK();
 		return -ETIMEDOUT;
 	}
+
+	now   = (now_tv.tv_sec  - padStreamPetTime) * 1000000;
+	now  +=  now_tv.tv_usec - padStreamPetTimeUs;
+
+	if ( now > maxStreamSendDelay3 )
+		maxStreamSendDelay3 = now;
+
 
 	/* just look in the cache - we rely on the RX daemon refreshing it */
 	if ( (rval = arpLookup(intrf, lpkt_ip(&replyPacket).dst, lpkt_eth(&replyPacket).dst, 1)) ) {

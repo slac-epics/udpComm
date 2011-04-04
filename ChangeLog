@@ -1,3 +1,5 @@
+20110404 (T.S.)
+ - README.drvPadUdpComm: updated (minor).
 20100524 (T.S.)
  - src/padStream.c: added more statistics counters.
  - README: updated.

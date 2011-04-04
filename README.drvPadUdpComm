@@ -98,7 +98,7 @@ of the individual commands (= size of the biggest one).
 Supported PAD Commands:
 
   PADCMD_NOP      No operation. This command has no effect. Note that
-                  to reply is sent either (even if PADCMD_QUIET flag
+                  no reply is sent either (even if PADCMD_QUIET flag
                   is not set).
                   This command can be used as a placeholder when
                   sending a request using method c) above. PADCMD_NOP
@@ -166,14 +166,124 @@ Example for sending a PAD request
     }
 
 	
+Streaming
+---------
 
-Furthermore, you must honor the 'endian_little' and 'col_major'
-flags as well as the new 'd32' flag.
+The PADCMD_STRM and PADCMD_STOP commands are sent by a client
+to switch the PAD into and out of 'streaming mode'.
+
+In 'streaming mode' the PAD sends unsolicited packets containing
+e.g., digitizer samples whenever new data are available. 
+In most cases sending 'stream' data is triggered by an external
+event, e.g., an 'ADC acquisition done' interrupt.
+The task processing such an interrupt calls
+
+int
+padStreamSend(PadStreamGetdataProc getdata_cb, int type, int idx, void *uarg);
+
+to send the data. The 'getdata_cb' is a user-provided routine (see below)
+that is responsible for formatting and copying the data.
+
+Note that 'padStreamSend()' fails without doing any processing
+if the PAD is not in streaming mode.
+
+This is a possible scenario for an application that uses a
+PAD stream:
+
+1. Client fills a PadStrmCommandRec struct with desired parameters:
+    - command type (PADCMD_STRM)
+    - UDP port number where it listens for streamed data
+    - number of 'samples' (array elements) *per channel* that
+      the PAD should acquire and stream back.
+
+      Note that the PadProtocol always assumes a channel number
+      of four, i.e., a stream ships two-dimensional arrays with
+      4 x nsamples data items.
+    - a set of flags describing the desired data format:
+          o endian-ness (little-endian if PADCMD_STRM_FLAG_LE is
+            set, big-endian otherwise).
+          o array element word-length (32-bit if PADCMD_STRM_FLAG_32
+            is set, 16-bit otherwise).
+          o layout (column-major if PADCMD_STRM_FLAG_CM is set, 
+            row-major otherwise).
+            In column-major layout array element (i,j) is stored
+            at linear index i+j*4. In row-major layout the element (i,j)
+            is stored at linear index i*nsamples+j.
+            E.g., in C, array elements 'X[i][j]' are stored in
+            row-major layout whereas FORTRAN's X(i,j) uses colum-major.
+
+2. Client sends a PadRequest containing the PadStrmCommandRec to the PAD.
+
+3. PAD switches to streaming mode.
+
+4. On each trigger the PAD receives it calls 'padStreamSend()' which
+   in-turn executes the user-supplied callback for formatting and
+   copying the data to memory or directly to the transmitter.
+
+5. Client sends a PADCMD_STOP
+
+6. PAD switches streaming mode off.
+
+An application that wishes to implement support for the PAD streaming
+mode needs to implement two callback routines:
+
+int
+start_stop_cb(PadStrmCommand start, void *uarg);
+
+and
+
+void *
+getdata_cb(void *pktBuf, int idx, int nsamples, int d32, int endian_little, int col_major, void *uarg);
+
+The 'start_stop_cb()' is executed whenever the PAD receives a
+PADCMD_STRM or PADCMD_STOP command, respectively. In the former
+case the 'start' argument points to the PadStrmCommandRec that
+contains additional information (flags, layout, etc.) and in
+the latter case (PADCMD_STOP) the 'start' argument is NULL.
+
+The 'start_stop_cb()' may perform any actions required by
+the application to switch to and from streaming mode.
+
+The 'start_stop_cb()' must return zero if these actions were
+successful. Under any condition that prohibits changing the mode
+as requested this callback must return nonzero in order to
+reject the request.
+
+In particular, the start_stop_cb() must check the requested
+parameters (nsamples, flags) and reject the start request
+if the requested parameters/format are not supported by the
+application by returning a nonzero status.
+
+E.g., if your 'getdata_cb' does only support 16-bit, row-major
+layout and no byte-swapping then 'start_stop_cb()' must
+return nonzero if any of the flags PADCMD_STRM_FLAG_CM, PADCMD_STRM_FLAG_32
+or PADCMD_STRM_FLAG_LE (assuming that the pad protocol server
+executes on a big-endian machine) are set.
+
+The 'uarg' parameter passed to the 'start_stop_cb' is an
+arbitrary pointer that is supplied by the user when the
+stream facility is initialized, i.e., it is a copy of the
+'uarg' parameter passed to 
+
+int
+padStreamInitialize(void *if_p, PadStreamStartStopCB start_stop_cb, void *uarg);
+
+The 'getdata_cb()' is responsible for converting the data
+to the requested format as indicated by the 'd32', 'endian_little', 'col_major'
+and 'nsamples'. Note that all of these parameters *MUST* be
+honored by this callback or the client will receive corrupted
+data. Hence it is very important that the 'start_stop_cb()'
+performs a proper check and rejects starting the stream if
+an unsupported format is requested.
 
 The callback can either write the correctly formated
-data itself to the FIFO / hardware or it can write to a memory buffer.
+data itself to the FIFO / hardware (this is ugly but
+quite a bit faster on the coldfire platform) or it can write
+to a memory buffer.
 In the former case the callback returns NULL, in the latter
-a pointer to the memory buffer.
+a pointer to the memory buffer. E.g., the 'pktBuf' area
+provides enough space to store data that fits into an ethernet
+frame (minus the ethernet, IP, UDP and PadProto headers).
 
 It is important that *exactly*
 
@@ -181,12 +291,18 @@ nsamples * (d32 ? 4 : 2) * 4
 
 bytes are written (or contained in the buffer).
 
-If 'endian_little' is set then 32-bit (if d32 argument nonzero)
-or 16-bit (if d32 argument is zero) words must be written
-little-endian, otherwise big-endian.
+If 'endian_little' is set then words of the requested
+size (32-bit if 'd32' is nonzero, 16-bit otherwise)
+must be written in little-endian byte ordering. If
+'endian_little' is zero then big-endian byte ordering
+is to be used.
+Note that it is the application's responsibility to
+perform the necessary (compile-time or run-time) checks
+to find out under what circumstances byte-swapping must
+be performed.
 
 If 'col_major' is set (nonzero) then the data array has the
-layout
+(C-language) layout
 
 data[nsamples][4]
 
@@ -204,57 +320,60 @@ However, I recommend to always implement at least
 endian_little since that allows you to use the 'padProtoHost'
 tool from a linux-x86 host for development.
 
+The 'idx' parameter can be used as a sequence number.
+It is passed to 'padStreamSend()', handed to 'getdata_cb()'
+and eventually stored in the stream packet.
+It can e.g., be used if an array is to be streamed
+which is bigger than what fits into a single datagram.
+Such an application could repeatedly call 'padStreamSend()'
+for different 'idx' numbers. 'getdata_cb()' would then
+copy the sub-part of the large array that corresponds to
+'idx'. Finally, the receiver of the stream would re-assemble
+the big array from the individual parts based on the
+received 'idx' numbers.
+
+E.g., the application could declare
+
+/* 4*64 32-bit numbers fit into one datagram */
+
+uint32_t my_array[N_CHUNKS][4][64];
+
+void *
+my_getdata(void *pktBuf, int idx, int nsamples, int d32, int le, int cm, void *uarg)
+{
+	return uarg; /* 'idx' not required here - 'uarg' already points to chunk 'i' */
+}
+
+
+for ( i=0; i<N_CHUNKS; i++ ) {
+	padStreamSend(my_getdata, 0, i, my_array[i]);
+}
+
+Finally, the stream receiver could re-assemble the array:
+
+uint32_t my_array[N_CHUNKS][4][64];
+
+PadReply rply;
+
+memcpy(my_array[rply->strm_cmd_idx], rply->data, sizeof(uint32_t)*4*64);
+
 The callback prototype has changed in the recent past.
 I recommend to pay attention to compiler warnings which
 would bring this change to your attention.
 
 
-Look at your 'getProcessedData' callback. If row-major data is
-requested then 'getProcessedData()' calls 'myDrvPadReadFifosRowMajor()'
-and the latter routine does not honor 'nsamples' (or 'n' as the argument
-is called here), i.e., it copies 12   32-bit words to the transmitter wrongfully
-ignoring the requested number of samples.
-
-The correct way to implement streaming here would be:
-
-The stream must be started differently, depending if you operate
-in raw-mode or processed-mode:
-
-raw mode:
-
-  start stream for 128 samples, d32 flag (DrvPadUdpCommPrefsRec) false
-
-  the stream start_stop_cb should check that d32 is clear and return nonzero
-  if this is not the case.
-
-  the 'getdata' callback can probably remain what it was when the BPM code
-  was cloned.
-
-processed mode
-
-  start stream for 3 samples, d32 flag set
-
-  start_stop_cb should check d32 flag and return nonzero if clear. If you
-  don't support byte-swapping and/or a transposed/col-major array
-  (not supporting the latter is  OK) then the start_stop_cb should
-  reject the unsupported modes.
-
-  'getdata' callback should copy 'nsamples*4' 32-bit words and byte-swap
-  if little-endian data is requested.
-
-In your special case you could actually use the requested word size
-(d32 vs. d16) do indicate the desired 'mode' (see example below).
-
-HTH
--- Till
-
-Example start_stop_cb().
+Example start_stop_cb(). Assume that we support two
+modes, a 'raw mode' where we ship raw 16-bit ADC
+samples and a 'processed mode' where we ship a few
+32-bit numbers that we compute from the raw samples.
+Use the D32 flag as an indication from the client
+whether it desires 'processed' vs. 'raw' data.
 
 int
 my_start_stop_cb(PadStrmComand scmd, void *uarg)
 {
  if ( scmd ) {
-  /* Start Stream */
+   /* Start Stream */
 
    if ( (scmd->flags & PADCMD_STRM_FLAG_32) ) {
      /* assume processed mode */
@@ -266,11 +385,11 @@ my_start_stop_cb(PadStrmComand scmd, void *uarg)
       * ntohl(scmd->nsamples) matches what we expect
       */
    } else {
-     /* assume raw mode; OK. */
+     /* assume raw mode */
    }
  } else {
    /* Stop Stream  */
-       }
+ }
  return 0;
 }
 
@@ -280,14 +399,16 @@ void *
 getdata(void *pktBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg)
 {
  if ( d32 ) {
-   /* "Processed mode" */
-
+   /* Processed mode  */
    /* Cannot be colMajor since we rejected that in start_stop_cb */
    if ( endianLittle ) {
-     /* Copy byte-swapped data (nsamples * 4 32-bit words) to FIFO */
+     /* Copy byte-swapped data (nsamples * 4 32-bit words) to
+      * lan9118's FIFO and return NULL to let the caller know
+      * that the work is done.
+      */
      return 0;
    } else {
-     /* Since data is already in memory buffer we can let the caller
+     /* If our data is already in a memory buffer we can let the caller
       * do the copying (only more efficient to write to TX FIFO ourselves
       * if we compute data and hold it in a register already, e.g.,
       * because we byte-swapped or read from ADC FIFO.)
@@ -304,37 +425,11 @@ getdata(void *pktBuffer, int idx, int nsamples, int d32, int endianLittle, int c
  return 0;
 }
 
-As the -ENOSPC return code indicates the failure is due to there
-not be sufficient space in the TX FIFO for the packet you're trying
-to send.
 
-Two possible causes come to my mind:
-
-1)
-You're calling padStreamSend() repeatedly with so big packets
-that the TX harware can't keep up and the FIFO fills.
-Of course, this becomes more likely to happen as you approach
-100mbit/s ~ 10MB/s
-
-2)
-Your getdata callback is wrong and the data in the FIFO becomes
-screwed up and gets stuck so that subsequent attempts to send
-fill the FIFO completely.
-
-I suspect that the second is what you're seeing.
+drvPadUdpComm
+=============
 
 
-
-Kim, Kukhee wrote:
-> Hi Till;
->
->
-> I think, I need to adjust the nsamples.
->   
-Yes.
-> The LLRF PAD is sending only a few samples, but the default value is 128
-> for the nsamples.
->   
 It's not the default value. You define the number of samples
 in the DrvPadUdpCommPrefsRec struct (on the IOC/VME side).
 
@@ -462,16 +557,20 @@ returns a value >=0 then a flag is set ( 3 flags are maintained,
 one for each 'kind'/flavor of data) indicating that 'data arrived'
 (it is this flag that is checked by the watchdog task).
 
-Note that for now your cook callback should only return -1,0, or 1
+Note that for now your cook callback should only return 
+the macros defined in <drvPadUdpComm.h>
 since other values may have special semantics in the future:
 
-0 : (OK) -> set 'data arrived' flag and request record IO/scan-list
-     to be scanned.
-1 : (got data but e.g., there is no beam) -> set 'data arrived' flag
-     but omit scanning the record list
--1: -> do NOT set 'data arrived' flag, do NOT scan record list.
+PAD_UDPCOMM_COOK_STAT_OK:
+  (OK) -> set 'data arrived' flag and request record IO/scan-list
+  to be scanned.
+PAD_UDPCOMM_COOK_STAT_NOSCAN:
+  (got data but e.g., there is no beam) -> set 'data arrived' flag
+  but omit scanning the record list
+PAD_UDPCOMM_COOK_STAT_NOSCAN_NOPOST:
+  -> do NOT set 'data arrived' flag, do NOT scan record list.
 
-When the watchdog task finds that no data have of any 'kind'
+When the watchdog task finds that no data of any 'kind'
 have been received (i.e., the 'cook' callback has never returned
 >=0 for any 'kind ' of data then your 'watchdog' callback is
 executed. You can use this callback to take appropriate action.

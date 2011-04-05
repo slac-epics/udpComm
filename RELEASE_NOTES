@@ -1,3 +1,8 @@
+udpComm-R1-3-2:  (2011/April/05)
+                 Changes to decouple the version of EPICS BASE from the configure/RELEASE
+                 Everything is essentially done in the RELEASE_SITE file now.
+                 
+
 udpComm-R1-3-1:  (2010/06/01, T.S.)
 		 Just another module-jungle release.
 		 Built against event-R3-2-1 instead of event-R3-2-0.

@@ -1,4 +1,4 @@
-udpComm-R1-3-2:  (2011/April/05)
+udpComm-R1-3-2:  (2011/April/05, Ernesto)
                  Changes to decouple the version of EPICS BASE from the configure/RELEASE
                  Everything is essentially done in the RELEASE_SITE file now.
                  

@@ -1,4 +1,4 @@
-$Id$
+$Id: README,v 1.3 2010/05/24 14:19:39 strauman Exp $
 
 The 'udpComm' API is very similar to traditional socket programming
 but slightly simplified.
@@ -6,11 +6,12 @@ but slightly simplified.
 The 'udpComm' API is implemented for both, communication over regular
 BSD sockets and the dedicated 'lanIpBasic' mini-stack.
 
-If you write you application using udpComm then you can later switch
+If you write your application using udpComm then you can later switch
 to lanIpBasic w/o modifying your app.
 
-Also, 'udpComm' provides buffer management (always for RX, optional for TX)
-so that copying from/to a user area can be avoided.
+Also, 'udpComm' provides access to lanIpBasic's buffer management
+(always for RX, optional for TX) so that copying from/to a user area
+can be avoided.
 
 The API is described in
 

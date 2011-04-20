@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.5 2010/02/08 19:14:39 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.6 2010/04/16 22:22:38 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -17,8 +17,14 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <ifaddrs.h>
+#include <pthread.h>
 
 #define ERRNONEG (errno ? -errno : -1)
+
+static pthread_mutex_t  udpcomm_Mtx = PTHREAD_MUTEX_INITIALIZER;
+
+#define __LOCK()   pthread_mutex_lock( & udpcomm_Mtx )
+#define __UNLOCK() pthread_mutex_unlock( & udpcomm_Mtx )
 
 
 #define DO_ALIGN(x,a) (((uintptr_t)(x) + ((a)-1)) & ~((a)-1))
@@ -69,6 +75,7 @@ typedef struct {
 	struct sockaddr sender;
 	int             rx_sd;
 	void            *raw_mem;
+	int             refcnt;
 } __attribute__((may_alias)) UdpCommBSDPkt;
 
 #ifndef OPEN_MAX
@@ -98,6 +105,7 @@ UdpCommBSDPkt *p;
 	p          = (UdpCommBSDPkt*)(BUFALIGN(p_raw) + PADSZ);
 	p->raw_mem = p_raw;
 	p->rx_sd   = -1;
+	p->refcnt  =  1;
 	return p;
 }
 
@@ -116,6 +124,11 @@ int                err, yes;
 		close(sd);
 		return -1;
 	}
+
+	/* using sdaux should be thread-safe (udpCommClose doesn't
+	 * access sdaux). The OS gives us a new unique SD so that we
+	 * automatically 'own' its slot in sdaux.
+	 */
 
 	sdaux[sd].dipaddr = 0;
 
@@ -188,8 +201,26 @@ socklen_t          len;
 void
 udpCommFreePacket(UdpCommPkt p)
 {
-	if ( p )
-		free(((UdpCommBSDPkt*)p)->raw_mem);
+int c;
+UdpCommBSDPkt *pkt = (UdpCommBSDPkt*)p;
+
+	if ( pkt ) {
+		__LOCK();
+		c = --pkt->refcnt;
+		__UNLOCK();
+		if ( 0 == c ) {
+			free(pkt->raw_mem);
+		}
+	}
+}
+
+void
+udpCommRefPacket(UdpCommPkt p)
+{
+UdpCommBSDPkt *pkt = (UdpCommBSDPkt*)p;
+	__LOCK();
+	pkt->refcnt++;
+	__UNLOCK();
 }
 
 UdpCommPkt
@@ -209,9 +240,11 @@ int
 udpCommConnect(int sd, uint32_t diaddr, int port)
 {
 struct sockaddr_in they;
+int                rval;
 
 	memset(&they, 0, sizeof(they));
 
+	__LOCK();
 	/* Do not connect to a multicast/broadcast destination
 	 * but remember destination in sdaux.
 	 */
@@ -233,13 +266,18 @@ struct sockaddr_in they;
 		they.sin_port          = htons(port);
 
 	}
-	return connect(sd, (struct sockaddr*)&they, sizeof(they)) ? ERRNONEG : 0;
+	rval = connect(sd, (struct sockaddr*)&they, sizeof(they)) ? ERRNONEG : 0;
+
+	__UNLOCK();
+
+	return rval;
 }
 
 int
 udpCommSend(int sd, void *buf, int len)
 {
 int rval;
+	__LOCK();
 	if ( sdaux[sd].dipaddr ) {
 		union {
 			struct sockaddr_in ia;
@@ -252,6 +290,7 @@ int rval;
 	} else {
 		rval = send(sd, buf, len, 0);
 	}
+	__UNLOCK();
 	return rval < 0 ? (ERRNONEG) : rval ;
 }
 
@@ -261,21 +300,11 @@ udpCommSendPkt(int sd, UdpCommPkt pkt, int len)
 UdpCommBSDPkt *p = (UdpCommBSDPkt*) pkt;
 int           rval;
 
-	if ( sdaux[sd].dipaddr ) {
-		union {
-			struct sockaddr_in ia;
-			struct sockaddr    sa;
-		} dst;
-		dst.ia.sin_family      = AF_INET;
-		dst.ia.sin_addr.s_addr = sdaux[sd].dipaddr;
-		dst.ia.sin_port        = sdaux[sd].dport;
-		rval = sendto(sd, p->data, len, 0, &dst.sa, sizeof(dst.ia));
-	} else {
-		rval = send(sd, p->data, len, 0);
-	}
+	rval = udpCommSend( sd, p->data, len );
 
 	udpCommFreePacket(p);
-	return rval < 0 ? (ERRNONEG) : rval;
+
+	return rval;
 }
 
 int

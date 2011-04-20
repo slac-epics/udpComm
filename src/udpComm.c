@@ -1,4 +1,4 @@
-/* $Id: udpComm.c,v 1.4 2010/02/02 19:59:12 strauman Exp $ */
+/* $Id: udpComm.c,v 1.5 2010/02/02 22:11:24 strauman Exp $ */
 
 #include <lanIpBasic.h>
 #include <netinet/in.h>
@@ -45,6 +45,13 @@ udpCommFreePacket(UdpCommPkt p)
 {
 	udpSockFreeBuf(p);
 }
+
+void
+udpCommRefPacket(UdpCommPkt p)
+{
+	udpSockRefBuf(p);
+}
+
 
 int
 udpCommJoinMcast(int sd, uint32_t mc_addr)

@@ -1,3 +1,15 @@
+20110420 (T.S.)
+ - src/udpComm.c, src/udpComm.h, src/udpCommBSD.c:
+   Added support for packet reference count (udpCommRefPacket()).
+   This requires support from underlying lanIpBasic (udpSockRefBuf()).
+
+   Added thread-safety to udpCommBSD.c.
+
+ - src/drvPadUdpComm.c, src/drvPadUdpComm.h, src/drvPadUdpCommIO.h:
+   Added support for packet reference count (udpCommRefPacket())
+   (padReplyRef(), padReplyFree()).
+   This includes a new 'creatref' member in DrvPadUdpCommIORec
+   (which needs to be implemented by vmeDigiComm[BPM]).
 20110404 (T.S.)
  - README.drvPadUdpComm: updated (minor).
 20100524 (T.S.)

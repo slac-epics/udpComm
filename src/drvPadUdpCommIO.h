@@ -1,6 +1,6 @@
 #ifndef DRV_PAD_UDPCOMM_IO_API_H
 #define DRV_PAD_UDPCOMM_IO_API_H
-/* $Id: drvPadUdpCommIO.h,v 1.1 2010/01/19 02:16:13 strauman Exp $ */
+/* $Id: drvPadUdpCommIO.h,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
 
 /* An ugly driver defining I/O 'methods' for drvPadUdpComm.
  * 
@@ -59,6 +59,7 @@ typedef struct DrvPadUdpCommIORec_ {
 	UdpCommPkt          (*recv)     (int fd, int timeout_ms);
 	void *              (*bufptr)   (UdpCommPkt);
 	UdpCommPkt          (*alloc)    ();
+	void                (*creatref) (UdpCommPkt);
 	void                (*free)     (UdpCommPkt);
 	/* This last one is ugly but does different things
 	 * with the VME digitizer as opposed to the PAD.

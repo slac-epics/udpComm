@@ -119,10 +119,10 @@ static DrvPadUdpCommIORec io = {
 	recv:     udpCommRecv,
 	bufptr:   udpCommBufPtr,
 	alloc:    udpCommAllocPacket,
+	creatref: udpCommRefPacket,
 	free:     udpCommFreePacket,
 	padIoReq: padRequest,
 };
-
 
 /* This is actually optimized away by gcc */
 static int
@@ -313,6 +313,20 @@ padDataFree(WavBuf wb)
 {
 	io.free(wb->usrData);
 	return 0;
+}
+
+void
+padReplyFree(PadReply reply)
+{
+	if ( reply ) {
+		io.free( (void*)( (uintptr_t)reply - (uintptr_t)io.bufptr(0) ) );
+	}
+}
+
+void
+padReplyRef(PadReply reply)
+{
+	io.creatref( (void*)( (uintptr_t)reply - (uintptr_t)io.bufptr(0) ) );
 }
 
 static long 

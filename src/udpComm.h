@@ -1,4 +1,4 @@
-/* $Id: udpComm.h,v 1.4 2010/02/08 19:14:39 strauman Exp $ */
+/* $Id: udpComm.h,v 1.5 2010/04/16 22:22:37 strauman Exp $ */
 #ifndef UDPCOMM_LAYER_H
 #define UDPCOMM_LAYER_H
 
@@ -65,6 +65,19 @@ udpCommAllocPacket();
 /* Release packet (obtained from Recv) when done       */
 void
 udpCommFreePacket(UdpCommPkt p);
+
+/* Create an additional 'reference' to a packet (increment
+ * an internal reference counter).
+ * udpCommFreePacket() decrements the reference count and only
+ * really releases the packet buffer once the count drops to
+ * zero.
+ * This facility can be used if you need to re-use the same
+ * packet from different software modules.
+ * NOTE: Any modifications to the packet data are 'seen' by
+ *       ALL users who hold a reference!
+ */
+void
+udpCommRefPacket(UdpCommPkt p);
 
 /* Payload size = eth MTU - ip and udp header sizes    */
 #define UDPCOMM_PKTSZ (1500 - 20 - 8)

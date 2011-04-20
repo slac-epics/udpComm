@@ -63,7 +63,7 @@ typedef struct DrvPadUdpCommPrefsRec_ {
 #define PAD_UDPCOMM_COOK_STAT_OK             0
 /* Set 'data received' flag but don't request scanlist to be processed */
 #define PAD_UDPCOMM_COOK_STAT_NOSCAN         1
-/* Do not set 'ata received' flag, do not request scanlist to be
+/* Do not set 'data received' flag, do not request scanlist to be
  * processed and do not post raw data
  */
 #define PAD_UDPCOMM_COOK_STAT_NOSCAN_NOPOST -1
@@ -106,6 +106,19 @@ extern volatile uint32_t drvPadUdpCommChannelsInUseMask;
  */
 PadReply
 padReplyFind(void *data_p);
+
+/* Create a reference to a reply packet (e.g., if the cook callback
+ * has further use for it).
+ * 'padReplyFree()' [below] decrements the reference count
+ * and releases the reply packet buffer once the reference count
+ * drops to zero.
+ */
+void
+padReplyRef(PadReply rply);
+
+void
+padReplyFree(PadReply rply);
+
 
 /* get a new 'transaction ID'; a global counter
  * is incremented atomically by this routine

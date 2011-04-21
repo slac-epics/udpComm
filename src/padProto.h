@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.4 2010/01/22 14:15:22 strauman Exp $ */
+/* $Id: padProto.h,v 1.5 2010/01/22 16:29:06 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -47,12 +47,14 @@ typedef struct PadCommandRec_ {
 
 #define PADCMD_STRM_FLAG_LE	1	/* They want little-endian data    */
 #define PADCMD_STRM_FLAG_CM	2	/* They want column-major  data    */
-#define PADCMD_STRM_FLAG_32 4   /* Data is 32-bit                  */
+#define PADCMD_STRM_FLAG_32 4   /* Data are 32-bit                 */
+#define PADCMD_STRM_FLAG_C1 8   /* Data are one channel only       */
 
 #define PADCMD_SIM_FLAG_NOSEND 1 /* Don't send simulated waveform; just save requested amplitudes */
 
 #define PADRPLY_STRM_FLAG_TYPE_SET(x)	(((x)&7)<<4)
 #define PADRPLY_STRM_FLAG_TYPE_GET(fl)	(((fl)>>4)&7)
+#define PADRPLY_STRM_NUM_KINDS          8
 
 /* Sample size is sizeof(int16_t) */
 #define PADRPLY_STRM_NCHANNELS	4
@@ -77,8 +79,9 @@ typedef struct PadSimCommandRec_ {
 
 /* Not used anymore
 #define PADPROTO_VERSION1		0x31
- */
 #define PADPROTO_VERSION2		0x32
+ */
+#define PADPROTO_VERSION3		0x33
 
 #define PADREQ_BCST	(-128) /* Address all channels with a single command */
 

@@ -230,7 +230,7 @@ strmReplySetup(PadReply rply, uint32_t xid, int d32, int le, int col_maj, int ns
 int len = nsamples*(d32 ? sizeof(int32_t) : sizeof(int16_t))*NCHNS + sizeof(*rply);
 
 	/* Setup Reply */
-	rply->version         = PADPROTO_VERSION2;
+	rply->version         = PADPROTO_VERSION3;
 	rply->type            = PADCMD_STRM | PADCMD_RPLY;
 	rply->chnl            = chnl;
 	rply->nBytes          = htons(len);

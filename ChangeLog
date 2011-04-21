@@ -1,3 +1,19 @@
+20110421 (T.S.)
+ - src/drvPadUdpComm.c, src/drvPadUdpComm.h:
+   Support up to PADRPLY_STRM_NUM_KINDS. This is the max. currently defined
+   by the padProtocol (8).
+   'cook' callback has a new return value with an optional 'redirected' kind
+   encoded. I.e., the cook callback can choose to have the buffer posted
+   as a different 'kind' from the original one.
+   drvPadUdpCommListener() checks for padProto version (added paranoia).
+ - src/wavBuf.c: check for legal 'kind' parameter in wavBufPost().
+ - src/drvPadUdpComm.c, src/drvPadUdpComm.h, src/padProto.h, src/padProto.c,
+   src/hostStream.c: 
+   Added new protocol feature: PADCMD_STRM_FLAG_C1 allows the user to request
+   that only a single ADC channel is streamed. The Channel number may e.g., be
+   encoded in the data 'kind'.
+   This new feature in the protocol made it necessary to bump the protocol
+   version number.
 20110420 (T.S.)
  - src/udpComm.c, src/udpComm.h, src/udpCommBSD.c:
    Added support for packet reference count (udpCommRefPacket()).

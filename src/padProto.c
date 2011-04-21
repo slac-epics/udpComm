@@ -67,7 +67,7 @@ PadCommand 		cmd;
 PadReply   		rply;
 int32_t			err  = 0;
 
-	if ( PADPROTO_VERSION2 != req_p->version ) {
+	if ( PADPROTO_VERSION3 != req_p->version ) {
 		return -1;
 	}
 
@@ -267,7 +267,7 @@ UdpCommPkt  p;
 	req          = udpCommBufPtr( p );
 	cmd          = (PadCommand)req->data;
 
-	req->version = PADPROTO_VERSION2;
+	req->version = PADPROTO_VERSION3;
 	req->nCmds   = who < 0 ? PADREQ_BCST : -who;
 
 	req->xid     = htonl(xid);

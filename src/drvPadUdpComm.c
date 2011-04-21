@@ -86,7 +86,7 @@ volatile DrvPadUdpCommHWTime drvPadUdpCommMaxCook = 0;
 #if MAX_BPM > 31
 #error "too many channels -- don't fit in 32-bit mask"
 #endif
-volatile uint32_t bpmUpToDate[NUM_DATA_KINDS]    = { 0, 0, 0};
+volatile uint32_t bpmUpToDate[PADRPLY_STRM_NUM_KINDS]    = { 0, 0, 0};
 volatile uint32_t drvPadUdpCommChannelsInUseMask = 0;
 
 static char simMode[MAX_BPM] = {0};
@@ -146,7 +146,7 @@ strmCmdInit(int d32, int col_maj)
 {
 int i;
 
-	padStrmCmd.req.version = PADPROTO_VERSION2;
+	padStrmCmd.req.version = PADPROTO_VERSION3;
 	padStrmCmd.req.nCmds   = MAX_BPM;
 	padStrmCmd.req.cmdSize = sizeof(padStrmCmd.cmd[0]);
 	for ( i=0; i<MAX_BPM; i++ ) {
@@ -441,7 +441,7 @@ unsigned nsamples;
 		pb->flags = 0;
 	}
 	pb->type    = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16;
-	pb->m       = 4;
+	pb->m       = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS;
 	pb->n       = nsamples;
 	pb->usrData = pkt;
 	pb->data    = rply->data;
@@ -464,7 +464,7 @@ drvPadUdpCommListener(void *arg)
 int         sd;
 UdpCommPkt  pkt = 0;
 PadReply    rply;
-PadDataKind kind;
+PadDataKind kind, new_kind;
 unsigned    chan;
 unsigned    nsamples;
 int         layout_cm;
@@ -473,6 +473,7 @@ int         key;
 epicsTimeStamp         now;
 DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
 DrvPadUdpCommHWTime    tDiff;
+int         bad_version_count = 0;
 
 	if ( cb->init )
 		cb->init(cb);
@@ -498,6 +499,14 @@ DrvPadUdpCommHWTime    tDiff;
 		tDiff    = drvPadUdpCommHWTime();
 
 		rply     = padReplyFind(pkt);
+
+		if ( PADPROTO_VERSION3 != rply->version ) {
+			bad_version_count++;
+			if ( (bad_version_count & 0xff) == 1 ) {
+				errlogPrintf("drvPadUdpCommListener: dropped %u unsupported version %u packets (need %u)\n", bad_version_count, rply->version, PADPROTO_VERSION3);
+			}
+			continue;	
+		}
 
 #ifdef __PPC__
 		{
@@ -549,27 +558,10 @@ DrvPadUdpCommHWTime    tDiff;
 				chan, nsamples, kind, ntohl(rply->timestampLo), ntohl(rply->xid));
 		}
 
-		cook_stat = 1;
-
-		/* TODO: find out what kind of cycle this is */
-		switch ( kind ) {
-
-				case PadDataBpm:
-				case PadDataCalRed:
-				case PadDataCalGrn:
-				{
-					if ( cb->cook ) {
-						cook_stat = cb->cook(rply, nsamples, layout_cm, kind, cb->cookClosure);
-					} else {
-						cook_stat = -1;
-					}
-				}
-				break;
-
-				default:
-					errlogPrintf("drvPadUdpCommListener: bad data kind (0x%x) from channel %i\n", kind, chan);
-					cook_stat = -1;
-				break;
+		if ( cb->cook ) {
+			cook_stat = cb->cook(rply, nsamples, layout_cm, kind, cb->cookClosure);
+		} else {
+			cook_stat = -1;
 		}
 
 		if ( cook_stat >= 0 ) {
@@ -578,12 +570,14 @@ DrvPadUdpCommHWTime    tDiff;
 				bpmUpToDate[kind] |= (1<<chan);
 			epicsInterruptUnlock(key);
 
-			switch ( cook_stat ) {
-				case PAD_UDPCOMM_COOK_STAT_DEBUG_DOSCAN:
+			new_kind = cook_stat & ~PAD_UDPCOMM_COOK_STAT_DEBUG_MASK;
+
+			switch ( (PAD_UDPCOMM_COOK_STAT_DEBUG_MASK & cook_stat) ) {
+				case PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_DOSCAN:
 					cook_stat = 0;
 					/* fall thru */
-				case PAD_UDPCOMM_COOK_STAT_DEBUG_NOSCAN:
-					drvPadUdpCommPostRaw( pkt, WAV_BUF_NUM_KINDS - NUM_DATA_KINDS + kind );
+				case PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_NOSCAN:
+					drvPadUdpCommPostRaw( pkt, new_kind );
 					pkt = 0;
 					/* fall thru */
 				default:
@@ -627,7 +621,7 @@ DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
 	while ( 1 ) {
 		/* Invalidate 'up-to-date flags' */
 		int			key,j;
-		uint32_t    timedout[NUM_DATA_KINDS], t, s, sa;
+		uint32_t    timedout[PADRPLY_STRM_NUM_KINDS], t, s, sa;
 
 		/*  s: bitfield of all channels that are in use and are timed out
          *     for at least one kind of data.
@@ -637,7 +631,7 @@ DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
 		s   = 0;
 		sa  = 0xffffffff;
 		key = epicsInterruptLock();
-			for ( j=0; j<NUM_DATA_KINDS; j++ ) {
+			for ( j=0; j<PADRPLY_STRM_NUM_KINDS; j++ ) {
 				if ( (cb->watchKinds & (1<<j)) ) {
 					timedout[j] = drvPadUdpCommChannelsInUseMask & ~bpmUpToDate[j];
 					s  |= timedout[j];
@@ -651,7 +645,7 @@ DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
 			/* Only bark if all kinds of data are timed-out */
 			for ( i=0, t = sa; t; t>>=1, i++ ) {
 				if ( (t & 1) ) {
-					for ( j=0; j<NUM_DATA_KINDS; j++ )
+					for ( j=0; j<PADRPLY_STRM_NUM_KINDS; j++ )
 						cb->watchdog(i,j,cb->watchdogClosure);
 				}
 			}
@@ -734,7 +728,7 @@ simInit()
 {
 int i;
 	/* Initialize the simulator command */
-	padSimulateCmd.req.version = PADPROTO_VERSION2;
+	padSimulateCmd.req.version = PADPROTO_VERSION3;
 	padSimulateCmd.req.nCmds   = MAX_BPM;
 	padSimulateCmd.req.cmdSize = sizeof(padSimulateCmd.simbpm[0]);
 

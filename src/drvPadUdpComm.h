@@ -24,8 +24,6 @@
 #define NumberOf(arr) (sizeof((arr))/sizeof((arr)[0]))
 #endif
 
-#define NUM_DATA_KINDS	3
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -48,16 +46,24 @@ typedef struct DrvPadUdpCommPrefsRec_ {
 
 /* 'cook' callback may return either of these
  * in order to have the raw data posted to 'wavBuf'
- * of kind WAV_BUF_NUM_KINDS - NUM_DATA_KINDS + 'kind'.
+ * of 'kind'.
  */
 /* Post raw data but skip scanning the records
  * which pick up the cooked data.
  */
-#define PAD_UDPCOMM_COOK_STAT_DEBUG_NOSCAN	22
+/* These three macros are for INTERNAL use only */
+#define PAD_UDPCOMM_COOK_STAT_DEBUG_MASK (~(0xff))
+#define PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_NOSCAN 0x100
+#define PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_DOSCAN 0x200
+/* Three macros above are for INTERNAL use only */
+
+#define PAD_UDPCOMM_COOK_STAT_DEBUG_NOSCAN(kind)\
+	( PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_NOSCAN | ((kind)&0xff))
 /* Post raw data but have the records scanned
  * to pick up the cooked data.
  */
-#define PAD_UDPCOMM_COOK_STAT_DEBUG_DOSCAN	23
+#define PAD_UDPCOMM_COOK_STAT_DEBUG_DOSCAN(kind)\
+	( PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_DOSCAN | ((kind)&0xff))
 
 /* Set 'data received' flag and do request scanlist to be processed    */
 #define PAD_UDPCOMM_COOK_STAT_OK             0

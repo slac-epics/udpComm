@@ -1,4 +1,4 @@
-/* $Id: wavBuf.c,v 1.3 2010/01/18 19:30:31 strauman Exp $ */
+/* $Id: wavBuf.c,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
 
 #include <epicsInterrupt.h>
 #include "wavBuf.h"
@@ -109,7 +109,7 @@ wavBufPost(unsigned slot, int kind, WavBuf b)
 int    rval;
 WavBuf oldb;
 
-	if ( !b )
+	if ( !b || kind < 0 || kind >= WAV_BUF_NUM_KINDS )
 		return -1;
 
 	oldb = wavBufSwap(slot, kind, b);

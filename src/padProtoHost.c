@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.5 2010/01/22 16:29:06 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.6 2010/02/08 19:10:31 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -161,8 +161,9 @@ union {
 		/* Dump packet */
 		buf.r = rply->data;
 
-		printf("// IDX: %i, TYPE %i\n",
-			rply->strm_cmd_idx,
+		printf("// IDX: %i (MF: %i), TYPE %i\n",
+			PADRPLY_STRM_CMD_IDX_GET(rply->strm_cmd_idx),
+			(rply->strm_cmd_idx & PADRPLY_STRM_CMD_IDX_MF) ? 1 : 0,
 			PADRPLY_STRM_FLAG_TYPE_GET(rply->strm_cmd_flags));
 		/* always write out in fortran (scilab) format with
 		 * the samples going down the columns

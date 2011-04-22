@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.5 2010/01/22 16:29:06 strauman Exp $ */
+/* $Id: padProto.h,v 1.6 2011/04/21 19:43:29 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -114,6 +114,9 @@ typedef struct PadReplyRec_ {
 
 #define strm_cmd_flags	spec[0]
 #define strm_cmd_idx    spec[1]
+/* 'More fragments' flag */
+#define PADRPLY_STRM_CMD_IDX_MF  0x80
+#define PADRPLY_STRM_CMD_IDX_GET(idx) ((idx) & ~PADRPLY_STRM_CMD_IDX_MF)
 
 /* Handle Protocol Request
  *    'req_p': The request. This may be modified by this routine to form a reply.

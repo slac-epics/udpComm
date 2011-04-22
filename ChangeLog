@@ -1,3 +1,10 @@
+20110422 (T.S.)
+ - src/padProto.h, src/padProtoHost.c:
+   added new 'more-fragments' flag to 'index' and a macro to extract
+   the index number (masking the MF flag).
+ - src/padStream.c:
+   No longer reject non-zero index (preparation for idx support in 
+   drvPadUdpComm).
 20110421 (T.S.)
  - src/drvPadUdpComm.c, src/drvPadUdpComm.h:
    Support up to PADRPLY_STRM_NUM_KINDS. This is the max. currently defined

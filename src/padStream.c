@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.11 2010/05/25 18:18:02 strauman Exp $ */
+/* $Id: padStream.c,v 1.12 2010/05/25 22:55:44 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -456,9 +456,6 @@ int            len;
 void          *data_p;
 uint32_t       now;
 struct timeval now_tv;
-
-	if ( idx != 0 )
-		return -ENOTSUP;	/* not supported yet */
 
 #ifdef __mcf5200__
 	now = Read_hwtimer() - drvLan9118RxIntBase;

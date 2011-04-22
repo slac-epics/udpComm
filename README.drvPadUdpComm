@@ -198,7 +198,10 @@ PAD stream:
 
       Note that the PadProtocol always assumes a channel number
       of four, i.e., a stream ships two-dimensional arrays with
-      4 x nsamples data items.
+      4 x nsamples data items. As of protocol version 3 there is
+      an option for only shipping a single channel (rather than 4)
+      in a stream packet.
+
     - a set of flags describing the desired data format:
           o endian-ness (little-endian if PADCMD_STRM_FLAG_LE is
             set, big-endian otherwise).
@@ -211,6 +214,13 @@ PAD stream:
             is stored at linear index i*nsamples+j.
             E.g., in C, array elements 'X[i][j]' are stored in
             row-major layout whereas FORTRAN's X(i,j) uses colum-major.
+          o single-channel option. If PADCMD_STRM_FLAG_C1 is set
+            then the client instructs the stream server to only
+            send data from a single channel (instead of the default,
+            four). The client and server must agree upon a scheme
+            to distinguish channels (e.g., implicit: only a single
+            channel exists or explicit: use the data 'kind' identifier
+            to label a particular channel).
 
 2. Client sends a PadRequest containing the PadStrmCommandRec to the PAD.
 
@@ -233,7 +243,7 @@ start_stop_cb(PadStrmCommand start, void *uarg);
 and
 
 void *
-getdata_cb(void *pktBuf, int idx, int nsamples, int d32, int endian_little, int col_major, void *uarg);
+getdata_cb(void *pktBuf, int idx, int nchannels, int nsamples, int d32, int endian_little, int col_major, void *uarg);
 
 The 'start_stop_cb()' is executed whenever the PAD receives a
 PADCMD_STRM or PADCMD_STOP command, respectively. In the former
@@ -254,11 +264,23 @@ parameters (nsamples, flags) and reject the start request
 if the requested parameters/format are not supported by the
 application by returning a nonzero status.
 
-E.g., if your 'getdata_cb' does only support 16-bit, row-major
-layout and no byte-swapping then 'start_stop_cb()' must
-return nonzero if any of the flags PADCMD_STRM_FLAG_CM, PADCMD_STRM_FLAG_32
-or PADCMD_STRM_FLAG_LE (assuming that the pad protocol server
-executes on a big-endian machine) are set.
+E.g., if your 'getdata_cb' does only support 4-channels, 16-bit,
+row-major layout and no byte-swapping then 'start_stop_cb()' must
+return nonzero if any of the flags PADCMD_STRM_FLAG_C1,
+PADCMD_STRM_FLAG_CM, PADCMD_STRM_FLAG_32 or PADCMD_STRM_FLAG_LE
+(assuming that the pad protocol server executes on a big-endian
+machine) are set.
+
+*************************************************************
+It is MANDATORY for the start_stop_cb() to check ALL parameters
+and return nonzero if any unsupported parameter is solicited.
+It is also highly RECOMMENDED for the start_stop_cb to check
+the protocol version and reject the request (by returning
+nonzero) if an unexpected protocol version is detected since
+newer versions of the protocol may add more features and a
+request for such features may go undetected by the current
+implementation of start_stop_cb().
+*************************************************************
 
 The 'uarg' parameter passed to the 'start_stop_cb' is an
 arbitrary pointer that is supplied by the user when the
@@ -269,10 +291,11 @@ int
 padStreamInitialize(void *if_p, PadStreamStartStopCB start_stop_cb, void *uarg);
 
 The 'getdata_cb()' is responsible for converting the data
-to the requested format as indicated by the 'd32', 'endian_little', 'col_major'
-and 'nsamples'. Note that all of these parameters *MUST* be
-honored by this callback or the client will receive corrupted
-data. Hence it is very important that the 'start_stop_cb()'
+to the requested format as indicated by the 'd32', 'endian_little',
+'col_major', 'nchannels' and 'nsamples'. Note that all of
+these parameters *MUST* be honored by this callback or the
+client will receive corrupted data.
+Hence it is very important that the 'start_stop_cb()'
 performs a proper check and rejects starting the stream if
 an unsupported format is requested.
 
@@ -287,7 +310,7 @@ frame (minus the ethernet, IP, UDP and PadProto headers).
 
 It is important that *exactly*
 
-nsamples * (d32 ? 4 : 2) * 4
+nsamples * (d32 ? 4 : 2) * nchannels
 
 bytes are written (or contained in the buffer).
 
@@ -302,13 +325,13 @@ to find out under what circumstances byte-swapping must
 be performed.
 
 If 'col_major' is set (nonzero) then the data array has the
-(C-language) layout
+(C-language) layout (nchannels is normally 4)
 
-data[nsamples][4]
+data[nsamples][nchannels]
 
 otherwise the layout is
 
-data[4][nsamples]
+data[nchannels][nsamples]
 
 Note that the callback has no way of ignoring any of
 those flags.
@@ -339,7 +362,7 @@ E.g., the application could declare
 uint32_t my_array[N_CHUNKS][4][64];
 
 void *
-my_getdata(void *pktBuf, int idx, int nsamples, int d32, int le, int cm, void *uarg)
+my_getdata(void *pktBuf, int idx, int nchannels, int nsamples, int d32, int le, int cm, void *uarg)
 {
 	return uarg; /* 'idx' not required here - 'uarg' already points to chunk 'i' */
 }
@@ -370,15 +393,20 @@ Use the D32 flag as an indication from the client
 whether it desires 'processed' vs. 'raw' data.
 
 int
-my_start_stop_cb(PadStrmComand scmd, void *uarg)
+my_start_stop_cb(PadRequest req, PadStrmComand scmd, void *uarg)
 {
  if ( scmd ) {
    /* Start Stream */
 
+   if ( PADPROTO_VERSION3 != req->version ) {
+     fprintf(stderr,"Unsupported protocol version 0x%02x: (expected 0x%02x)\n", req->version, PADPROTO_VERSION3);
+     return -ENOTSUP;
+   }
+
    if ( (scmd->flags & PADCMD_STRM_FLAG_32) ) {
      /* assume processed mode */
-     if ( (scmd->flags & PADCMD_STRM_FLAG_CM) ) {
-       fprintf(stderr,"Col-major operation not supported\n");
+     if ( (scmd->flags & (PADCMD_STRM_FLAG_CM | PADCMD_STRM_FLAG_C1)) ) {
+       fprintf(stderr,"Neither col-major nor single-channel operation is supported\n");
        return -ENOTSUP;
      }
      /* OK. Could verify that
@@ -396,7 +424,7 @@ my_start_stop_cb(PadStrmComand scmd, void *uarg)
 Example getdata() callback:
 
 void *
-getdata(void *pktBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg)
+getdata(void *pktBuffer, int idx, int nchannels, int nsamples, int d32, int endianLittle, int colMajor, void *uarg)
 {
  if ( d32 ) {
    /* Processed mode  */
@@ -429,7 +457,7 @@ getdata(void *pktBuffer, int idx, int nsamples, int d32, int endianLittle, int c
 drvPadUdpComm
 =============
 
-
+>>> this is from an email-conversation, I don't recall with whom <<<
 It's not the default value. You define the number of samples
 in the DrvPadUdpCommPrefsRec struct (on the IOC/VME side).
 
@@ -553,7 +581,7 @@ Similarly, when you call drvPadUdpCommStopReq( channel) then the
 channel is marked 'off-line'.
 
 Whenever your 'cook' callback that processes the raw data
-returns a value >=0 then a flag is set ( 3 flags are maintained,
+returns a value >=0 then a flag is set ( multiple flags are maintained,
 one for each 'kind'/flavor of data) indicating that 'data arrived'
 (it is this flag that is checked by the watchdog task).
 

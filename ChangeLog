@@ -1,4 +1,16 @@
 20110422 (T.S.)
+ - README, README.drvPadUdpComm: updated documentation.
+ - src/padStream.c, src/padStream.h:
+    o Added PadStreamStartStopCB() additional 'PadRequest' argument
+      so that e.g., protocol version may be verified/checked.
+    o Added 'nchannels' argument to 'getdata' callback so that channel
+      numbers other than 4 can be supported.
+    o PadStripSimValRec now contains an array of PADRPLY_STRM_NCHANNELS
+      instead of four discrete values. This helps supporting different
+      values for nchannels in the simulation 'getdata' callback.
+    o padStreamSim_iir2_getdata() and streamTest() 'getdata' callbacks
+      now support variable 'nchannels'.
+20110422 (T.S.)
  - src/padProto.h, src/padProtoHost.c:
    added new 'more-fragments' flag to 'index' and a macro to extract
    the index number (masking the MF flag).

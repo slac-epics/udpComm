@@ -10,6 +10,8 @@
       values for nchannels in the simulation 'getdata' callback.
     o padStreamSim_iir2_getdata() and streamTest() 'getdata' callbacks
       now support variable 'nchannels'.
+ - src/drvPadUdpComm.c, src/drvPadUdpComm.h: Added drvPadUdpCommPostReply()
+   [convenience routine for LLRF].
 20110422 (T.S.)
  - src/padProto.h, src/padProtoHost.c:
    added new 'more-fragments' flag to 'index' and a macro to extract

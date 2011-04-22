@@ -458,6 +458,12 @@ unsigned nsamples;
 	}
 }
 
+void
+drvPadUdpCommPostReply(PadReply rply, PadDataKind kind)
+{
+	drvPadUdpCommPostRaw( (UdpCommPkt)( (uintptr_t)rply - (uintptr_t)io.bufptr(0) ) , kind);
+}
+
 static void
 drvPadUdpCommListener(void *arg)
 {

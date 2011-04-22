@@ -126,6 +126,18 @@ void
 padReplyFree(PadReply rply);
 
 
+/* Post 'rply' to wavBuf slot 'kind'. Note that the caller
+ * Must 'own' a reference to the reply packet. When this
+ * is e.g., executed from a 'cook' callback then a reference
+ * must explicitly created e.g., by padReplyRef( rply );
+ * Ownership of the packet/reference is transferred to the
+ * wavBuf code which takes care of releasing the packet
+ * (even under error condition).
+ */
+void
+drvPadUdpCommPostReply(PadReply rply, PadDataKind kind);
+
+
 /* get a new 'transaction ID'; a global counter
  * is incremented atomically by this routine
  * (but you may use a different policy for the

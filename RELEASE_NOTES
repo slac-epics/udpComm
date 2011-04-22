@@ -1,3 +1,16 @@
+udpComm-R2-0-0:  (2011/April/22, Till)
+                 Several enhancements in order to better support LLRF needs.
+                  o drvPadUdpComm is data 'kind' agnostic and supports up to
+                    8 kinds as defined by the padProto.
+                  o new option to support streaming only a single channel
+                    (instead of the normal 4).
+                  o support packet reference count so that a single packet
+                    can be shared by multiple threads and free'd only when
+                    the last user releases it.
+                  o preparation for better support for multi-index (= fragmented)
+                    streams.
+                 Since these changes required modifications to the padProtocol
+                 the major release version was bumped. 
 udpComm-R1-3-2:  (2011/April/05, Ernesto)
                  Changes to decouple the version of EPICS BASE from the configure/RELEASE
                  Everything is essentially done in the RELEASE_SITE file now.

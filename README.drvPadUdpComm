@@ -603,6 +603,126 @@ have been received (i.e., the 'cook' callback has never returned
 >=0 for any 'kind ' of data then your 'watchdog' callback is
 executed. You can use this callback to take appropriate action.
 
+Here some more (un-ordered) info from another email:
+
+The major new features are as follows:
+
+1) Support for up to 8 'kinds' of data:
+   drvPadUdpComm no longer restricts you to use only three kinds
+   of data. Also, the special return values defined for the
+   'cook' callback:
+
+   PAD_UDPCOMM_COOK_STAT_DEBUG_NOSCAN
+   PAD_UDPCOMM_COOK_STAT_DEBUG_DOSCAN
+
+   have changed. These return values are used for special applications
+   to indicate that the data buffer should not be posted at the
+   'message-board' in the slot # 'kind' but in some different slot.
+   Up to R2-0-0 this different slot was encoded implicitly as
+   WAV_BUF_NUM_KINDS - 3 + 'kind'. As of R2-0-0 you can/must explicitly
+   specify the alternate 'kind' value as a parameter to the macros
+
+   PAD_UDPCOMM_COOK_STAT_DEBUG_NOSCAN( alt_kind )
+   PAD_UDPCOMM_COOK_STAT_DEBUG_DOSCAN( alt_kind )
+
+   Note that you are not normally supposed to use these macros anyways.
+   They are intended for special debugging purposes.
+
+   However, the new version simply allows you to use up to 8 different
+   'kinds' of data.
+
+   One thing is important to note: Data are posted at the message
+   board in slot # 'kind' after the 'cook' callback is done. If you
+   e.g., have 4 'kinds' then packets of these 4 kinds arriving in
+   quick succession are posted in 4 different slots.
+
+   Waveform records pick up the latest buffers when they are scanned.
+   As already described in an earlier message, there are three ways
+   to scan waveforms:
+
+   a) ordinary, periodic scanning. The waveform just picks up an
+      arbitrary 'wavbuf', i.e., the last posted before the scanning
+      happened.
+
+   b) 'wbscan'. If the waveform record's INP field contains the
+      string 'wbscan' then posting a wavBuf on the message
+      board (done by the high-priority drvPadUdpComm driver task
+      after executing 'cook') automatically requests the waveform
+      to be scanned (but this happens in a different, lower-priority
+      task context). Note that the scan-rate is identical to the
+      post-rate, i.e., most likely 120Hz.
+
+    c) I/O-Intr scanning. If the waveform is set to I/O-Intr scanning
+      then scanning is triggered by arrival of 'kind-zero' data
+      (note that you cannot change these semantics).
+      Note that records associated with *all* 'kinds' that are I/O-IntrI
+      scanned are on the *same* scan list that is triggered by arrival
+      of kind-zero data. Hence, you would normally arrange the timing
+      of your streamed data so that kind-zero arrives *last*.
+
+      Also, this is where the PRIO field of the records matters. If
+      PRIO is not HIGH (i.e., medium or low) then the scan rate is 
+      decimated to no faster than 1Hz. If PRIO is HIGH then the scan
+      rate equals the arrival of kind-0 data.
+
+      If this seems weird then please remember that this was developed
+      for BPMs. Here, two calibration cycles (kind == CalRed and
+      kind == CalGrn) precede a BPM reading cycle. Hence, the condition
+      that kind-0 arrives last is met. Also, for BPMs, no waveforms
+      are ever set to PRIO==HIGH. Only the final BPM readings which go
+      into BSA and which are AI records are PRIO==HIGH and are thus
+      scanned with every kind-0 data arrival. 
+      The waveforms are PRIO==LOW and thus scanned synchronously with
+      kind-0 data but at a much decimated rate. This is the intended
+      scenario for the I/O-Intr type scanning.
+
+2) Support for multiple references to PadReply packets. The semantics
+   of drvPadUdpComm are as follows:
+
+   - driver receives a udpComm/padReply packet. This is 'owned' by the
+     driver. If any error is encountered then the driver releases the
+     packet.
+   - driver executes 'cook' callback. The callback may inspect the 
+     packet but does *not* take over ownership.
+   - driver allocates a wavBuf and attaches the packet to it (along
+     with a proper 'free' method so the wavBuf code knows how to
+     eventually release the packet). It then 'posts' the wavBuf on the
+     message-board and this effectively transfer 'ownership' to the
+     wavBuf and associated waveformRecord devsup code.
+
+   If you want your 'cook' routine to share ownership of a packet
+   (this is read-only, you must never modify packet data) then you can
+   - under udpComm-R2-0-0 - create an additional reference to a packet:
+
+   padReplyRef(PadReply rply)
+
+   and thus hold on to it independently from drvPadUdpComm. When your
+   code is done with the packet it must release it:
+
+   padReplyFree(PadReply rply)
+
+   If you transfer ownership to wavBuf then you must set the wavBuf's
+   'free' member to padReplyFree.
+
+   Note that most of this (except for creating the reference) is done
+   by the (new + public) courtesy routine drvPadUdpCommPostReply().
+
+3) Support for number of PAD ADC channels other than 4:
+
+   The padProtocol was modified so that it is possible to request
+   streaming of a single channel instead of 4 channels. Unfortunately,
+   there were not enough free bits to allow an arbitrary number 1..4.
+
+   A new stream option/flag PADCMD_STRM_FLAG_C1 was added, which -
+   if set - indicates that the client request streaming of a single 
+   channel only (the channel number could be communicated via the
+   stream 'kind' that can be set in the request and is replied back).
+
+   Note (and please read README.drvPadUdpComm) that your stream
+   'start_stop_cb' *must* check all the requested features (and
+   the protocol version) and reject starting the stream if unsupported
+   features are requested or an unrecognized protocol version is
+   detected.
 
 HTH
 -- Till

@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.4 2010/01/19 00:32:00 strauman Exp $ */
+/* $Id: padStream.h,v 1.5 2010/02/08 19:12:34 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -23,7 +23,7 @@ extern "C" {
  * The callback should return 0 on success, nonzero if the
  * stream cannot be started or stopped.
  */
-typedef int (*PadStreamStartStopCB)(PadStrmCommand scmd, void *uarg);
+typedef int (*PadStreamStartStopCB)(PadRequest req, PadStrmCommand scmd, void *uarg);
 
 int
 padStreamInitialize(void *if_p, PadStreamStartStopCB cb, void *uarg);
@@ -46,7 +46,7 @@ padStreamPet(PadRequest req, uint32_t hostip);
 int
 padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip);
 
-typedef void * (*PadStreamGetdataProc)(void *packBuffer, int idx, int nsamples, int d32, int endianLittle, int colMajor, void *uarg);
+typedef void * (*PadStreamGetdataProc)(void *packBuffer, int idx, int nchannels, int nsamples, int d32, int endianLittle, int colMajor, void *uarg);
 
 int
 padStreamSend(PadStreamGetdataProc getdata, int type, int idx, void *uarg);
@@ -68,7 +68,7 @@ int
 padStreamSim(PadSimCommand scmd, uint32_t hostip);
 
 typedef struct PadStripSimValRec_ {
-	int32_t	a,b,c,d;
+	int32_t	val[PADRPLY_STRM_NCHANNELS];
 } PadStripSimValRec, *PadStripSimVal;
 
 /* 'getdata' callback for generating simulated waveforms
@@ -81,6 +81,7 @@ typedef struct PadStripSimValRec_ {
 void *
 padStreamSim_iir2_getdata(void *packetBuffer,
 			int idx,
+			int nchannels,
 			int nsamples,
 			int d32,
 			int little_endian,

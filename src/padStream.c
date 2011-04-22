@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.12 2010/05/25 22:55:44 strauman Exp $ */
+/* $Id: padStream.c,v 1.13 2011/04/22 18:08:48 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -202,7 +202,7 @@ LanIpPacket     pkt;
 		dopet(req, rply);
 
 
-		rval =  start_stop_cb ? start_stop_cb(scmd, cbarg) : 0;
+		rval =  start_stop_cb ? start_stop_cb(req, scmd, cbarg) : 0;
 
 		if ( rval ) {
 			isup      = 0;
@@ -262,44 +262,41 @@ uint32_t v = (uint32_t)x;
 static void *
 streamTest16(void *packetBuffer,
 			int idx,
+			int nchannels,
 			int nsamples,
 			int little_endian,
 			int column_major,
 			void *uarg)
 {
 int16_t *buf = packetBuffer;
-int i;
+int i,j;
 	if ( !little_endian != bigEndian() ) {
 		if ( column_major ) {
 			for (i=0; i<nsamples; i++) {
-				buf[i*4+0] = swap(i+0x00 + (idx<<8));
-				buf[i*4+1] = swap(i+0x10 + (idx<<8));
-				buf[i*4+2] = swap(i+0x20 + (idx<<8));
-				buf[i*4+3] = swap(i+0x30 + (idx<<8));
+				for (j=0; i<nchannels; i++) {
+					buf[i*4+j] = swap(i+(j<<4) + (idx<<8));
+				}
 			}
 		} else {
 			for (i=0; i<nsamples; i++) {
-				buf[i+0*nsamples] = swap(i+0x00 + (idx<<8));
-				buf[i+1*nsamples] = swap(i+0x10 + (idx<<8));
-				buf[i+2*nsamples] = swap(i+0x20 + (idx<<8));
-				buf[i+3*nsamples] = swap(i+0x30 + (idx<<8));
+				for (j=0; i<nchannels; i++) {
+					buf[i+j*nsamples] = swap(i+ (j<<4) + (idx<<8));
+				}
 			}
 		}
 	} else {
 		#define swap(x)	(x)
 		if ( column_major ) {
 			for (i=0; i<nsamples*NCHNS; i+=4) {
-				buf[i+0] = swap(i+0x00 + (idx<<8));
-				buf[i+1] = swap(i+0x10 + (idx<<8));
-				buf[i+2] = swap(i+0x20 + (idx<<8));
-				buf[i+3] = swap(i+0x30 + (idx<<8));
+				for (j=0; i<nchannels; i++) {
+					buf[i+j] = swap(i+ (j<<4) + (idx<<8));
+				}
 			}
 		} else {
 			for (i=0; i<nsamples; i++) {
-				buf[i+0*nsamples] = swap(i+0x00 + (idx<<8));
-				buf[i+1*nsamples] = swap(i+0x10 + (idx<<8));
-				buf[i+2*nsamples] = swap(i+0x20 + (idx<<8));
-				buf[i+3*nsamples] = swap(i+0x30 + (idx<<8));
+				for (j=0; i<nchannels; i++) {
+					buf[i+j*nsamples] = swap(i+ (j<<4) + (idx<<8));
+				}
 			}
 		}
 		#undef swap
@@ -310,44 +307,41 @@ int i;
 static void *
 streamTest32(void *packetBuffer,
 			int idx,
+			int nchannels,
 			int nsamples,
 			int little_endian,
 			int column_major,
 			void *uarg)
 {
 int32_t *buf = packetBuffer;
-int i;
+int i,j;
 	if ( !little_endian != bigEndian() ) {
 		if ( column_major ) {
 			for (i=0; i<nsamples; i++) {
-				buf[i*4+0] = swapl(i+0x00 + (idx<<8));
-				buf[i*4+1] = swapl(i+0x10 + (idx<<8));
-				buf[i*4+2] = swapl(i+0x20 + (idx<<8));
-				buf[i*4+3] = swapl(i+0x30 + (idx<<8));
+				for ( j=0; j<nchannels; j++ ) {
+					buf[i*4+j] = swapl(i+ (j<<4) + (idx<<8));
+				}
 			}
 		} else {
 			for (i=0; i<nsamples; i++) {
-				buf[i+0*nsamples] = swapl(i+0x00 + (idx<<8));
-				buf[i+1*nsamples] = swapl(i+0x10 + (idx<<8));
-				buf[i+2*nsamples] = swapl(i+0x20 + (idx<<8));
-				buf[i+3*nsamples] = swapl(i+0x30 + (idx<<8));
+				for ( j=0; j<nchannels; j++ ) {
+					buf[i+j*nsamples] = swapl(i+ (j<<4) + (idx<<8));
+				}
 			}
 		}
 	} else {
 		#define swapl(x)	(x)
 		if ( column_major ) {
 			for (i=0; i<nsamples*NCHNS; i+=4) {
-				buf[i+0] = swapl(i+0x00 + (idx<<8));
-				buf[i+1] = swapl(i+0x10 + (idx<<8));
-				buf[i+2] = swapl(i+0x20 + (idx<<8));
-				buf[i+3] = swapl(i+0x30 + (idx<<8));
+				for ( j=0; j<nchannels; j++ ) {
+					buf[i+j] = swapl(i+ (j<<4) + (idx<<8));
+				}
 			}
 		} else {
 			for (i=0; i<nsamples; i++) {
-				buf[i+0*nsamples] = swapl(i+0x00 + (idx<<8));
-				buf[i+1*nsamples] = swapl(i+0x10 + (idx<<8));
-				buf[i+2*nsamples] = swapl(i+0x20 + (idx<<8));
-				buf[i+3*nsamples] = swapl(i+0x30 + (idx<<8));
+				for ( j=0; j<nchannels; j++ ) {
+					buf[i+j*nsamples] = swapl(i+ (j<<4) + (idx<<8));
+				}
 			}
 		}
 		#undef swapl
@@ -358,14 +352,15 @@ int i;
 static void *
 streamTest(void *packetBuffer,
 			int idx,
+			int nchannels,
 			int nsamples,
 			int d32,
 			int little_endian,
 			int column_major,
 			void *uarg)
 {
-	return d32 ? streamTest32(packetBuffer, idx, nsamples, little_endian, column_major, uarg) : 
-	             streamTest16(packetBuffer, idx, nsamples, little_endian, column_major, uarg);
+	return d32 ? streamTest32(packetBuffer, idx, nchannels, nsamples, little_endian, column_major, uarg) : 
+	             streamTest16(packetBuffer, idx, nchannels, nsamples, little_endian, column_major, uarg);
 }
 
 
@@ -376,6 +371,7 @@ PadStreamGetdataProc padStreamSim_getdata = padStreamSim_iir2_getdata;
 void *
 padStreamSim_iir2_getdata(void *packetBuffer,
 			int idx,
+			int nchannels,
 			int nsamples,
 			int d32,
 			int little_endian,
@@ -384,55 +380,47 @@ padStreamSim_iir2_getdata(void *packetBuffer,
 {
 int16_t		*buf  = packetBuffer;
 int32_t     *bufl = packetBuffer;
-int32_t      atmp, btmp, ctmp, dtmp;
+int32_t      tmp[PADRPLY_STRM_NCHANNELS];
 PadStripSimVal ini  = uarg;
 int         swp;
-int         i;
+int         i,j;
 static unsigned long noise = 1;
 
 	swp    = ( bigEndian() != !little_endian );
 
 	if ( d32 ) {
 		if ( swp ) {
-			atmp = swapl(ini->a);
-			btmp = swapl(ini->b);
-			ctmp = swapl(ini->c);
-			dtmp = swapl(ini->d);
+			for ( j=0; j<nchannels; j++ ) {
+				tmp[0] = swapl(ini->val[j]);
+			}
 		} else {
-			atmp = ini->a;
-			btmp = ini->b;
-			ctmp = ini->c;
-			dtmp = ini->d;
+			for ( j=0; j<nchannels; j++ ) {
+				tmp[0] = ini->val[j];
+			}
 		}
 		if ( column_major ) {
 			for ( i=0; i<nsamples; i++ ) {
-				bufl[i + 0] = atmp;
-				bufl[i + 1] = btmp;
-				bufl[i + 2] = ctmp;
-				bufl[i + 3] = dtmp;
+				for ( j=0; j<nchannels; j++ ) {
+					bufl[i + j] = tmp[j];
+				}
 			}
 		} else {
 			for ( i=0; i<nsamples; i++ ) {
-				bufl[i + 0*nsamples] = atmp;
-				bufl[i + 1*nsamples] = btmp;
-				bufl[i + 2*nsamples] = ctmp;
-				bufl[i + 3*nsamples] = dtmp;
+				for ( j=0; j<nchannels; j++ ) {
+					bufl[i + j*nsamples] = tmp[j];
+				}
 			}
 		}
 	} else {
 		if ( column_major ) {
-			iir2_bpmsim(buf++, nsamples, ini->a, 0,  &noise, swp, NCHNS);
-			iir2_bpmsim(buf++, nsamples, ini->b, 0,  &noise, swp, NCHNS);
-			iir2_bpmsim(buf++, nsamples, ini->c, 0,  &noise, swp, NCHNS);
-			iir2_bpmsim(buf++, nsamples, ini->d, 0,  &noise, swp, NCHNS);
+			for ( j=0; j<nchannels; j++ ) {
+				iir2_bpmsim(buf++, nsamples, ini->val[j], 0,  &noise, swp, NCHNS);
+			}
 		} else {
-			iir2_bpmsim(buf, nsamples, ini->a, 0,  &noise, swp, 1);
-			buf += nsamples;
-			iir2_bpmsim(buf, nsamples, ini->b, 0,  &noise, swp, 1);
-			buf += nsamples;
-			iir2_bpmsim(buf, nsamples, ini->c, 0,  &noise, swp, 1);
-			buf += nsamples;
-			iir2_bpmsim(buf, nsamples, ini->d, 0,  &noise, swp, 1);
+			for ( j=0; j<nchannels; j++ ) {
+				iir2_bpmsim(buf, nsamples, ini->val[j], 0,  &noise, swp, 1);
+				buf += nsamples;
+			}
 		}
 	}
 
@@ -511,6 +499,7 @@ struct timeval now_tv;
 	if ( (data_p=getdata(
 					&rply->data,
 					idx,
+					rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1 ? 1 : PADRPLY_STRM_NCHANNELS,
 					nsamples, 
 					rply->strm_cmd_flags & PADCMD_STRM_FLAG_32,
 					rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
@@ -564,10 +553,10 @@ int err    = 0;
 				}
 			}
 			if ( !err ) {
-				strips.a = ntohl(scmd->a);
-				strips.b = ntohl(scmd->b);
-				strips.c = ntohl(scmd->c);
-				strips.d = ntohl(scmd->d);
+				strips.val[0] = ntohl(scmd->a);
+				strips.val[1] = ntohl(scmd->b);
+				strips.val[2] = ntohl(scmd->c);
+				strips.val[3] = ntohl(scmd->d);
 			}
 		UNLOCK();
 
@@ -597,7 +586,7 @@ int rval = 0;
 				rval = -EACCES;
 			} else {
 				if ( start_stop_cb )
-					rval = start_stop_cb(0, cbarg);
+					rval = start_stop_cb(0, 0, cbarg);
 
 				isup      = 0;
 				peer.ip   = 0;

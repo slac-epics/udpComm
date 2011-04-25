@@ -42,7 +42,7 @@ DrvPadUdpCommHWTime        now, diff;
 	/* only interested in 120Hz... */
 	st = evrTimeGetFromPipeline( &time_s, evrTimeCurrent, modifier_a, &patternStatus, 0, 0, 0);
 	if ( st ) {
-		epicsPrintf("drvPadUdpComm: (fidTimeGetBaseline_default()) epicsTimeGetFromPipeline failed (status %i)\n", st);
+		epicsPrintf("drvPadUdpComm: (fidTimeGetBaseline_generic()) epicsTimeGetFromPipeline failed (status %i)\n", st);
 		
 		return;
 	}

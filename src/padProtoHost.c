@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.6 2010/02/08 19:10:31 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.7 2011/04/22 18:08:48 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -62,7 +62,7 @@ union {
 void
 usage(char *nm)
 {
-	fprintf(stderr,"Usage: %s [-bhveLc] [-d debug_facility] [-C channel] [-l port] [-n nsamples] [-s srvr_port] [-t <stream_timeout_secs>] "
+	fprintf(stderr,"Usage: %s [-1bhveLc] [-d debug_facility] [-C channel] [-l port] [-n nsamples] [-s srvr_port] [-t <stream_timeout_secs>] "
 #ifdef USE_SDDS
 	"[-S sdds_file:col,col,col,col] [-p start:end] "
 #endif
@@ -74,10 +74,10 @@ usage(char *nm)
 	fprintf(stderr,"          -e request wrong endianness (for testing; STRM command only)\n");
 	fprintf(stderr,"          -c request col-major data   (for testing; STRM command only)\n");
 	fprintf(stderr,"          -L request long (32-bit) data   (STRM command only)\n");
+	fprintf(stderr,"          -1 request single channel data (STRM command only)\n");
 	fprintf(stderr,"          -n <nsamples> request <nsamples> (STRM command only)\n");
 	fprintf(stderr,"          -C <channel>  send to PAD # <channel>\n");
 	fprintf(stderr,"          -l <port>     operate in STRM listener mode on <port>\n");
-	fprintf(stderr,"          -n <port>     operate in STRM listener mode on <port>\n");
 	fprintf(stderr,"          <msg_type_int> (forced to STRM if any of -[necL] options present:\n");
 	fprintf(stderr,"                      0 = NOP\n");
 	fprintf(stderr,"                      1 = ECHO\n");
@@ -126,8 +126,9 @@ streamdump(int sd)
 {
 UdpCommPkt        p;
 PadReply          rply;
-int               i;
+int               i,j;
 int               d32;
+int               nchannels;
 int               sz;
 union {
 	int16_t *s;
@@ -155,6 +156,7 @@ union {
 
 
 		d32 = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? 1 : 0;
+		nchannels = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS;
 
 		sz = PADRPLY_STRM_NSAMPLES(rply);
 
@@ -169,23 +171,27 @@ union {
 		 * the samples going down the columns
 		 */
 		if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
-			for (i=0; i<sz*4; i+=4) {
+			for (i=0; i<sz*nchannels; i+=nchannels) {
 				if ( d32 ) {
-					printf("%5i %5i %5i %5i\n",
-							buf.l[i+0], buf.l[i+1], buf.l[i+2], buf.l[i+3]);
+					for ( j=0; j<nchannels; j++ )
+						printf("%5i ", buf.l[i+j]);
+					printf("\n");
 				} else {
-					printf("%5i %5i %5i %5i\n",
-							buf.s[i+0], buf.s[i+1], buf.s[i+2], buf.s[i+3]);
+					for ( j=0; j<nchannels; j++ )
+						printf("%5i ", buf.s[i+j]);
+					printf("\n");
 				}
 			}
 		} else {
 			for (i=0; i<sz; i++) {
 				if ( d32 ) {
-					printf("%5i %5i %5i %5i\n",
-							buf.l[i+0*sz], buf.l[i+1*sz], buf.l[i+2*sz], buf.l[i+3*sz]);
+					for ( j=0; j<nchannels; j++ )
+						printf("%5i ", buf.l[i+j*sz]);
+					printf("\n");
 				} else {
-					printf("%5i %5i %5i %5i\n",
-							buf.s[i+0*sz], buf.s[i+1*sz], buf.s[i+2*sz], buf.s[i+3*sz]);
+					for ( j=0; j<nchannels; j++ )
+						printf("%5i ", buf.s[i+j*sz]);
+					printf("\n");
 				}
 			}
 		}
@@ -218,6 +224,7 @@ char               *col     = 0;
 int               nsamples  = 8;
 int               badEndian = 0;
 int               d32       = 0;
+int               c1        = 0;
 int               colMajor  = 0;
 int               srvrMode  = 0;
 unsigned          dbg       = 0;
@@ -231,7 +238,7 @@ uint32_t          mcaddr    = 0;
 const char *      mcgrp     = 0;
 int               err;
 
-	while ( (ch = getopt(argc, argv, "bvcehLl:n:C:s:d:S:t:P:p:m:")) > 0 ) {
+	while ( (ch = getopt(argc, argv, "1bvcehLl:n:C:s:d:S:t:P:p:m:")) > 0 ) {
 		switch (ch) {
 			default:
 				fprintf(stderr,"Unknown option '%c'\n",ch);
@@ -298,6 +305,7 @@ int               err;
 			case 'b': theChannel = PADREQ_BCST; break;
 
 			case 'v': verbose   = 1; break;
+			case '1': c1        = 1; type = PADCMD_STRM; break;
 			case 'c': colMajor  = 1; type = PADCMD_STRM; break;
 			case 'e': badEndian = 1; type = PADCMD_STRM; break;
 			case 'L': d32       = 1; type = PADCMD_STRM; break;
@@ -399,6 +407,8 @@ int               err;
 				the_cmd.stmc.flags = (!isbe() ^ (badEndian == 1)) ? PADCMD_STRM_FLAG_LE : 0;
 				if ( d32 )
 					the_cmd.stmc.flags |= PADCMD_STRM_FLAG_32;
+				if ( c1 )
+					the_cmd.stmc.flags |= PADCMD_STRM_FLAG_C1;
 				the_cmd.stmc.port     = htons(port+1); /* should be PADPROTO_STRM_PORT */
 				the_cmd.stmc.nsamples = htonl(nsamples);
 

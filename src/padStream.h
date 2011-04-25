@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.5 2010/02/08 19:12:34 strauman Exp $ */
+/* $Id: padStream.h,v 1.6 2011/04/22 19:17:26 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -49,7 +49,7 @@ padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip);
 typedef void * (*PadStreamGetdataProc)(void *packBuffer, int idx, int nchannels, int nsamples, int d32, int endianLittle, int colMajor, void *uarg);
 
 int
-padStreamSend(PadStreamGetdataProc getdata, int type, int idx, void *uarg);
+padStreamSend(PadStreamGetdataProc getdata, int type, void *uarg);
 
 /* execute 'padStreamSend' with test data */
 int

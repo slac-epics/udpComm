@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.13 2011/04/22 18:08:48 strauman Exp $ */
+/* $Id: padStream.c,v 1.14 2011/04/22 19:17:25 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -11,14 +11,15 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include <netinet/in.h> /* for ntohs & friends */
-
-#define NCHNS	4	/* channels on a PAD */
 
 #include <padStream.h>
 
 #include "bpmsim.h"
+
+#define LD_FRAG_SIZE 10
 
 int padStreamDebug = 0;
 
@@ -37,6 +38,8 @@ uint32_t padStreamPetDiffMin = -1;
 uint32_t padStreamPetDiffAvg = 0;
 
 
+uint32_t padStreamXid        = 0xfeaf3210;
+unsigned int padStreamRand   = 0xfeaf3210;
 /* Data stream implementation. This could all be done over the
  * udpSock abstraction but less efficiently since we would have
  * to copy the PAD fifo to memory first instead of copying the
@@ -63,7 +66,7 @@ static rtems_id mutex = 0;
 	assert( RTEMS_SUCCESSFUL == rtems_semaphore_release(mutex) )
 
 static LanIpPacketRec replyPacket __attribute__((aligned(4))) = {{{{{0}}}}};
-static int            nsamples, sampsizld; /* keep values around (lazyness) */
+static int            nsamples, sampsizld, npkts; /* keep values around (lazyness) */
 #define LONGDATA (sampsizld == 2)
 
 static IpBscIf intrf;
@@ -137,18 +140,12 @@ PadReply        rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
 int             len;
 int             rval;
 LanIpPacket     pkt;
+int             nchannels;
+int             nbytes;
 
 
 	if ( !intrf )
 		return -ENODEV; /* stream has not been initialized yet */
-
-	nsamples  = ntohl(scmd->nsamples);
-	sampsizld = (scmd->flags & PADCMD_STRM_FLAG_32) ? 2 : 1;
-
-	if ( nsamples > (1440/4 >> sampsizld) ) {
-		/* doesn't fit in one packet */
-		return -EINVAL;
-	}
 
 	/* Recent lanIpBasic asynchronously updates the ARP cache. If want
 	 * to make sure that we have a valid cache entry then we better
@@ -165,6 +162,26 @@ LanIpPacket     pkt;
 		return rval;
 
 	LOCK();
+
+		padStreamXid = rand_r( &padStreamRand );
+
+		nsamples  = ntohl(scmd->nsamples);
+		npkts     = 1;
+		sampsizld = (scmd->flags & PADCMD_STRM_FLAG_32) ? 2 : 1;
+		nchannels = (scmd->flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS;
+
+		nbytes    = (nsamples<<sampsizld) * nchannels;
+
+		if ( nbytes > 1440 ) {
+			/* doesn't fit in one packet */
+			/* ATM, if we fragment then all fragments must be 1k in size */
+			if ( (nbytes & ((1<<LD_FRAG_SIZE)-1)) ) {
+				UNLOCK();
+				return -EINVAL;
+			}
+			npkts    = nbytes >> LD_FRAG_SIZE;
+			nsamples = (1<<(LD_FRAG_SIZE - sampsizld)) / nchannels; 
+		}
 
 		if ( ! peer.ip ) {
 				peer.ip   = hostip;
@@ -184,7 +201,7 @@ LanIpPacket     pkt;
 			/* Add missing bits: destination IP , source port */
 			lpkt_ip(&replyPacket).dst     = hostip;
 
-			len = ((nsamples*NCHNS) << sampsizld) + sizeof(*rply);
+			len = ((nsamples*nchannels) << sampsizld) + sizeof(*rply);
 			/* Fill in length and IP header checksum etc */
 			udpSockHdrsSetlen(&lpkt_udp_hdrs(&replyPacket), len);
 			/* Setup Reply */
@@ -200,7 +217,6 @@ LanIpPacket     pkt;
 		}
 
 		dopet(req, rply);
-
 
 		rval =  start_stop_cb ? start_stop_cb(req, scmd, cbarg) : 0;
 
@@ -272,14 +288,14 @@ int16_t *buf = packetBuffer;
 int i,j;
 	if ( !little_endian != bigEndian() ) {
 		if ( column_major ) {
-			for (i=0; i<nsamples; i++) {
-				for (j=0; i<nchannels; i++) {
-					buf[i*4+j] = swap(i+(j<<4) + (idx<<8));
+			for (i=0; i<nsamples*nchannels; i+=nchannels) {
+				for (j=0; j<nchannels; j++) {
+					buf[i+j] = swap(i+(j<<4) + (idx<<8));
 				}
 			}
 		} else {
 			for (i=0; i<nsamples; i++) {
-				for (j=0; i<nchannels; i++) {
+				for (j=0; j<nchannels; j++) {
 					buf[i+j*nsamples] = swap(i+ (j<<4) + (idx<<8));
 				}
 			}
@@ -287,14 +303,14 @@ int i,j;
 	} else {
 		#define swap(x)	(x)
 		if ( column_major ) {
-			for (i=0; i<nsamples*NCHNS; i+=4) {
-				for (j=0; i<nchannels; i++) {
+			for (i=0; i<nsamples*nchannels; i+=nchannels) {
+				for (j=0; j<nchannels; j++) {
 					buf[i+j] = swap(i+ (j<<4) + (idx<<8));
 				}
 			}
 		} else {
 			for (i=0; i<nsamples; i++) {
-				for (j=0; i<nchannels; i++) {
+				for (j=0; j<nchannels; j++) {
 					buf[i+j*nsamples] = swap(i+ (j<<4) + (idx<<8));
 				}
 			}
@@ -317,9 +333,9 @@ int32_t *buf = packetBuffer;
 int i,j;
 	if ( !little_endian != bigEndian() ) {
 		if ( column_major ) {
-			for (i=0; i<nsamples; i++) {
+			for (i=0; i<nsamples*nchannels; i+=nchannels) {
 				for ( j=0; j<nchannels; j++ ) {
-					buf[i*4+j] = swapl(i+ (j<<4) + (idx<<8));
+					buf[i+j] = swapl(i+ (j<<4) + (idx<<8));
 				}
 			}
 		} else {
@@ -332,7 +348,7 @@ int i,j;
 	} else {
 		#define swapl(x)	(x)
 		if ( column_major ) {
-			for (i=0; i<nsamples*NCHNS; i+=4) {
+			for (i=0; i<nsamples*nchannels; i+=nchannels) {
 				for ( j=0; j<nchannels; j++ ) {
 					buf[i+j] = swapl(i+ (j<<4) + (idx<<8));
 				}
@@ -414,7 +430,7 @@ static unsigned long noise = 1;
 	} else {
 		if ( column_major ) {
 			for ( j=0; j<nchannels; j++ ) {
-				iir2_bpmsim(buf++, nsamples, ini->val[j], 0,  &noise, swp, NCHNS);
+				iir2_bpmsim(buf++, nsamples, ini->val[j], 0,  &noise, swp, nchannels);
 			}
 		} else {
 			for ( j=0; j<nchannels; j++ ) {
@@ -435,12 +451,13 @@ extern uint32_t drvLan9118RxIntBase;
 #endif
 
 int
-padStreamSend(PadStreamGetdataProc getdata, int type, int idx, void *uarg)
+padStreamSend(PadStreamGetdataProc getdata, int type, void *uarg)
 {
 int            rval = 0;
+int            idx;
 PadReply       rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
 DrvLan9118_tps plan = lanIpBscIfGetDrv(intrf);
-int            len;
+int            len, nchannels;
 void          *data_p;
 uint32_t       now;
 struct timeval now_tv;
@@ -483,35 +500,45 @@ struct timeval now_tv;
 		rply->timestampLo = htonl(Read_hwtimer());
 	}
 
-	rply->strm_cmd_idx    = idx;
 	rply->strm_cmd_flags &= ~PADRPLY_STRM_FLAG_TYPE_SET(-1);
 	rply->strm_cmd_flags |=  PADRPLY_STRM_FLAG_TYPE_SET(type);
 
+	nchannels = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS,
+
 	len = UDPPKTSZ(ntohs(rply->nBytes));
 
-	if ( drvLan9118TxPacket(plan, 0, len, 0) ) {
-		UNLOCK();
-		return -ENOSPC;
+	if ( npkts > 0 ) {
+		rply->xid = padStreamXid++;
 	}
 
-	drvLan9118FifoWr(plan, &replyPacket, UDPPKTSZ(sizeof(PadReplyRec)));
+	for ( idx = 0; idx < npkts; idx++ ) {
+		rply->strm_cmd_idx    = idx;
+		if ( idx + 1 < npkts )
+			rply->strm_cmd_idx |= PADRPLY_STRM_CMD_IDX_MF;
+		if ( drvLan9118TxPacket(plan, 0, len, 0) ) {
+			UNLOCK();
+			return -ENOSPC;
+		}
 
-	if ( (data_p=getdata(
-					&rply->data,
-					idx,
-					rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1 ? 1 : PADRPLY_STRM_NCHANNELS,
-					nsamples, 
-					rply->strm_cmd_flags & PADCMD_STRM_FLAG_32,
-					rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
-					rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM,
-					uarg)) ) {
-		drvLan9118FifoWr(plan, data_p, ((nsamples*NCHNS) << sampsizld));
+		drvLan9118FifoWr(plan, &replyPacket, UDPPKTSZ(sizeof(PadReplyRec)));
+
+		if ( (data_p=getdata(
+						&rply->data,
+						idx,
+						nchannels,
+						nsamples, 
+						rply->strm_cmd_flags & PADCMD_STRM_FLAG_32,
+						rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
+						rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM,
+						uarg)) ) {
+			drvLan9118FifoWr(plan, data_p, ((nsamples*nchannels) << sampsizld));
+		}
+		/* else ['getdata' returned NULL] the getdata method already
+		 * wrote to the TX FIFO
+		 */
+
+		drvLan9118TxUnlock(plan);
 	}
-	/* else ['getdata' returned NULL] the getdata method already
-	 * wrote to the TX FIFO
-	 */
-
-	drvLan9118TxUnlock(plan);
 
 	UNLOCK();
 
@@ -529,7 +556,7 @@ struct timeval now_tv;
 int
 padStreamTest()
 {
-	return padStreamSend(streamTest, 0, 0,0);
+	return padStreamSend(streamTest, 0, 0);
 }
 
 int
@@ -565,7 +592,7 @@ int err    = 0;
 
 	}
 
-	return  dosend ? padStreamSend(padStreamSim_getdata, 0, 0, &strips) : 0;
+	return  dosend ? padStreamSend(padStreamSim_getdata, 0, &strips) : 0;
 }
 
 int

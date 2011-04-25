@@ -1,3 +1,15 @@
+20110425 (T.S.)
+ - src/hostStream.c, src/padProto.h, src/padStream.c: removed implicit
+   4-channel assumption (NCHANS).
+   Replaced by run-time detection of channel number via C1 flag.
+ - src/padProtoHost.c: added new -1 flag to request single-channel data.
+   Handle single-channel data when dumping stream.
+ - src/padStream.c, src/padStream.h: Removed 'idx' argument from padStreamSend.
+   This routine now iterates over all the fragments of a stream and calls
+   'getdata' repeatedly.
+   Fragmented streams must request multiple of 1k payload size.
+   Fragmented stream uses its own XID and changes this each time a
+   new stream packet is sent. This allows for association of fragments.
 20110422 (T.S.)
  - README, README.drvPadUdpComm: updated documentation.
  - src/padStream.c, src/padStream.h:

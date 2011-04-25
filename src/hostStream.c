@@ -10,8 +10,6 @@
 
 #include <math.h>
 
-#define NCHNS 4
-
 #include "bpmsim.h"
 #include "hostStream.h"
 
@@ -96,7 +94,7 @@ union {
 }
 
 typedef struct StripSimValRec_ {
-	int32_t	a,b,c,d;
+	int32_t	vals[PADRPLY_STRM_NCHANNELS];
 } StripSimValRec, *StripSimVal;
 
 static __inline__ int32_t swapl(int32_t x)
@@ -110,6 +108,7 @@ uint32_t v = (uint32_t)x;
 static void *
 streamSim(void *packetBuffer,
 			int nsamples,
+			int nchannels,
 			int d32,
 			int little_endian,
 			int column_major,
@@ -121,38 +120,30 @@ StripSimVal ini   = uarg;
 int         swp;
 static unsigned long noise = 1;
 float       c,s;
-int         ai,bi,ci,di;
-int         aq,bq,cq,dq;
-int32_t     atmp, btmp, ctmp, dtmp;
-int         i;
+int         vi[PADRPLY_STRM_NCHANNELS];
+int         vq[PADRPLY_STRM_NCHANNELS];
+int32_t     vtmp[PADRPLY_STRM_NCHANNELS];
+int         i,j;
 
 	swp    = ( bigEndian() != !little_endian );
 
 	if ( d32 ) {
 		if ( swp ) {
-			atmp = swapl(ini->a);
-			btmp = swapl(ini->b);
-			ctmp = swapl(ini->c);
-			dtmp = swapl(ini->d);
+			for ( j=0; j<nchannels; j++ )
+				vtmp[j] = swapl( ini->vals[j] );
 		} else {
-			atmp = ini->a;
-			btmp = ini->b;
-			ctmp = ini->c;
-			dtmp = ini->d;
+			for ( j=0; j<nchannels; j++ )
+				vtmp[j] = ( ini->vals[j] );
 		}
 		if ( column_major ) {
 			for ( i=0; i<nsamples; i++ ) {
-				bufl[i + 0] = atmp;
-				bufl[i + 1] = btmp;
-				bufl[i + 2] = ctmp;
-				bufl[i + 3] = dtmp;
+				for ( j=0; j<nchannels; j++ )
+					bufl[i + j] = vtmp[j];
 			}
 		} else {
 			for ( i=0; i<nsamples; i++ ) {
-				bufl[i + 0*nsamples] = atmp;
-				bufl[i + 1*nsamples] = btmp;
-				bufl[i + 2*nsamples] = ctmp;
-				bufl[i + 3*nsamples] = dtmp;
+				for ( j=0; j<nchannels; j++ )
+					bufl[i + j*nsamples] = vtmp[j];
 			}
 		}
 	} else {
@@ -199,24 +190,20 @@ int         i;
 
 		randstep(&noise);
 
-		ai = (int)((float)ini->a * c); aq	= (int)((float)ini->a * s);
-		bi = (int)((float)ini->b * c); bq	= (int)((float)ini->b * s);
-		ci = (int)((float)ini->c * c); cq	= (int)((float)ini->c * s);
-		di = (int)((float)ini->d * c); dq	= (int)((float)ini->d * s);
+		for ( j=0; j<nchannels; j++ ) {
+			vi[j] = (int)((float)ini->vals[j] * c);
+			vq[j] = (int)((float)ini->vals[j] * s);
+		}
 
 		if ( column_major ) {
-			iir2_bpmsim(buf++, nsamples, ai, aq,  &noise, swp, NCHNS);
-			iir2_bpmsim(buf++, nsamples, bi, bq,  &noise, swp, NCHNS);
-			iir2_bpmsim(buf++, nsamples, ci, cq,  &noise, swp, NCHNS);
-			iir2_bpmsim(buf++, nsamples, di, dq,  &noise, swp, NCHNS);
+			for ( j=0; j<nchannels; j++ ) {
+				iir2_bpmsim(buf++, nsamples, vi[j], vq[j],  &noise, swp, nchannels);
+			}
 		} else {
-			iir2_bpmsim(buf, nsamples, ai, aq, &noise, swp, 1);
-			buf += nsamples;
-			iir2_bpmsim(buf, nsamples, bi, bq, &noise, swp, 1);
-			buf += nsamples;
-			iir2_bpmsim(buf, nsamples, ci, cq, &noise, swp, 1);
-			buf += nsamples;
-			iir2_bpmsim(buf, nsamples, di, dq, &noise, swp, 1);
+			for ( j=0; j<nchannels; j++ ) {
+				iir2_bpmsim(buf, nsamples, vi[j], vq[j], &noise, swp, 1);
+				buf += nsamples;
+			}
 		}
 
 	}
@@ -225,9 +212,10 @@ int         i;
 }
 
 static int
-strmReplySetup(PadReply rply, uint32_t xid, int d32, int le, int col_maj, int nsamples, int chnl)
+strmReplySetup(PadReply rply, uint32_t xid, int c1, int d32, int le, int col_maj, int nsamples, int chnl)
 {
-int len = nsamples*(d32 ? sizeof(int32_t) : sizeof(int16_t))*NCHNS + sizeof(*rply);
+int nchannels = c1 ? 1 : PADRPLY_STRM_NCHANNELS;
+int len       = nsamples*(d32 ? sizeof(int32_t) : sizeof(int16_t))*nchannels + sizeof(*rply);
 
 	/* Setup Reply */
 	rply->version         = PADPROTO_VERSION3;
@@ -245,6 +233,9 @@ int len = nsamples*(d32 ? sizeof(int32_t) : sizeof(int16_t))*NCHNS + sizeof(*rpl
 		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_CM;
 	if ( d32 )
 		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_32;
+	if ( c1  )
+		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_C1;
+
 	rply->strm_cmd_idx    = 0;
 
 	return len;
@@ -282,6 +273,7 @@ uint32_t nsamples = ntohl(cmd->nsamples);
 int      le       = cmd->flags & PADCMD_STRM_FLAG_LE;
 int      cm       = cmd->flags & PADCMD_STRM_FLAG_CM;
 int      d32      = cmd->flags & PADCMD_STRM_FLAG_32;
+int      c1       = cmd->flags & PADCMD_STRM_FLAG_C1;
 
 #if 0
 	if ( sd >= 0 )
@@ -334,7 +326,7 @@ int      d32      = cmd->flags & PADCMD_STRM_FLAG_32;
 	if ( !rply )
 		rply = malloc(2048);
 
-	strmReplySetup(rply, req ? req->xid : 0, d32, le, cm, nsamples, me);
+	strmReplySetup(rply, req ? req->xid : 0, c1, d32, le, cm, nsamples, me);
 
 	dopet(req, rply);
 
@@ -349,8 +341,8 @@ bail:
 int
 padStream(int32_t a, int32_t b, int32_t c, int32_t d)
 {
-StripSimValRec      v = {a,b,c,d};
-int                 len, nsamples, d32;
+StripSimValRec      v = {{a,b,c,d}};
+int                 len, nsamples, d32, nchannels;
 struct timeval      now;
 
 	if ( sd < 0 )
@@ -375,12 +367,14 @@ struct timeval      now;
 
 	} else {
 #endif
+	nchannels = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS;
 	d32 = rply->strm_cmd_flags & PADCMD_STRM_FLAG_32;
-	nsamples = (len - sizeof(*rply))/NCHNS/(d32 ? sizeof(int32_t) : sizeof(int16_t));
+	nsamples = (len - sizeof(*rply))/nchannels/(d32 ? sizeof(int32_t) : sizeof(int16_t));
 
 	streamSim(
 		rply->data,
 		nsamples, 
+		nchannels,
 		d32,
 		rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
 		rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM,

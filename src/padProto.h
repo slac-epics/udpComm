@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.6 2011/04/21 19:43:29 strauman Exp $ */
+/* $Id: padProto.h,v 1.7 2011/04/22 18:08:48 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -61,7 +61,7 @@ typedef struct PadCommandRec_ {
 #define PADRPLY_STRM_LD_SZ(r)   (((r)->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? 2 : 1)
 #define PADRPLY_STRM_NSAMPLES(r)                                           \
 	(((ntohs((r)->nBytes) - sizeof(PadReplyRec)) >> PADRPLY_STRM_LD_SZ(r)) \
-	/PADRPLY_STRM_NCHANNELS)
+	/(((r)->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS))
 
 typedef struct PadStrmCommandRec_ {
 	int8_t		type;			/* PADCMD_XX                           */

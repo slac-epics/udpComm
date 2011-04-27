@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.6 2011/04/22 19:17:26 strauman Exp $ */
+/* $Id: padStream.h,v 1.7 2011/04/25 21:16:47 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -46,14 +46,18 @@ padStreamPet(PadRequest req, uint32_t hostip);
 int
 padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip);
 
-typedef void * (*PadStreamGetdataProc)(void *packBuffer, int idx, int nchannels, int nsamples, int d32, int endianLittle, int colMajor, void *uarg);
+#define PADSTRM_GETDATA_F_LE	(1<<0)
+#define PADSTRM_GETDATA_F_CM	(1<<1)
+#define PADSTRM_GETDATA_F_32	(1<<2)
+
+typedef void * (*PadStreamGetdataProc)(void *packBuffer, int idx, int channels, int nsamples, int d32, int endianLittle, int colMajor, void *uarg);
 
 int
 padStreamSend(PadStreamGetdataProc getdata, int type, void *uarg);
 
 /* execute 'padStreamSend' with test data */
 int
-padStreamTest();
+padStreamTest(int type);
 
 /* execute 'padStreamSend' with simulated/generated data
  * if 'scmd' is non-NULL then the simulation parameters
@@ -81,7 +85,7 @@ typedef struct PadStripSimValRec_ {
 void *
 padStreamSim_iir2_getdata(void *packetBuffer,
 			int idx,
-			int nchannels,
+			int channels,
 			int nsamples,
 			int d32,
 			int little_endian,

@@ -41,6 +41,7 @@ typedef struct DrvPadUdpCommPrefsRec_ {
 	int nsamples;
 	int d32;
 	int nsamples_dynamic;
+	int nchannels_dynamic;      /* whether to allow users to switch to single- (ADC) channel mode */
 	int col_major;
 } DrvPadUdpCommPrefsRec, *DrvPadUdpCommPrefs;
 
@@ -134,7 +135,7 @@ padReplyFree(PadReply rply);
  * wavBuf code which takes care of releasing the packet
  * (even under error condition).
  */
-void
+int
 drvPadUdpCommPostReply(PadReply rply, PadDataKind kind);
 
 
@@ -215,9 +216,30 @@ drvPadUdpCommStrmStopReq(int channel);
  *
  * NOTE:    routine can be used to read the current # of samples of
  *          a particular channel w/o changing it by passing nsamples=0.
+ *
+ *          The stream for channel (or all channels if channel=-1 is passed)
+ *          MUST NOT be running while the number of samples is modified
+ *          (Call fails otherwise).
  */
 int
 drvPadUdpCommStrmSetNSamples(int channel, int nsamples);
+
+/*
+ * Set number of ADC channels to enable (1 or PADRPLY_STRM_NCHANNELS) for
+ * a particular padChannel (or all channels if 'padChannel' < 0 )
+ *
+ * RETURNS: -1 on error, previous # of samples on success.
+ *          If 'padChannel'<0 then zero is returned on success.
+ *
+ * NOTE:    routine can be used to read the current # of ADC channels of
+ *          a particular padChannel w/o changing it by passing adcNChannels < 0.
+ *
+ *          The stream for padChannel (or all padChannels if padChannel=-1 is passed)
+ *          MUST NOT be running while the number of ADC channels is modified
+ *          (Call fails otherwise).
+ */
+int
+drvPadUdpCommStrmSetNChannels(int padChannel, int adcNChannels);
 
 /* Normal operating mode; simulator off */
 #define SIM_OFF	            0

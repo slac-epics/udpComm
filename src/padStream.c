@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.14 2011/04/22 19:17:25 strauman Exp $ */
+/* $Id: padStream.c,v 1.15 2011/04/25 21:16:47 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -143,7 +143,6 @@ LanIpPacket     pkt;
 int             nchannels;
 int             nbytes;
 
-
 	if ( !intrf )
 		return -ENODEV; /* stream has not been initialized yet */
 
@@ -163,7 +162,17 @@ int             nbytes;
 
 	LOCK();
 
-		padStreamXid = rand_r( &padStreamRand );
+		/* cannot change layout and # of samples etc. while up */
+		if ( isup ) {
+			if  (  (    (scmd->flags & ~PADRPLY_STRM_FLAG_TYPE_SET(-1)) 
+			         != (rply->strm_cmd_flags &= ~PADRPLY_STRM_FLAG_TYPE_SET(-1)) )
+			     || 
+			       ( nsamples != ntohl(scmd->nsamples) )
+                ) {
+			UNLOCK();
+			return -EINVAL;
+			}
+		}
 
 		nsamples  = ntohl(scmd->nsamples);
 		npkts     = 1;
@@ -172,15 +181,32 @@ int             nbytes;
 
 		nbytes    = (nsamples<<sampsizld) * nchannels;
 
+		padStreamXid = rand_r( &padStreamRand );
+
 		if ( nbytes > 1440 ) {
+
 			/* doesn't fit in one packet */
+
 			/* ATM, if we fragment then all fragments must be 1k in size */
 			if ( (nbytes & ((1<<LD_FRAG_SIZE)-1)) ) {
 				UNLOCK();
 				return -EINVAL;
 			}
+
+			/* Furthemore, in row-major layout row-boundaries must be packet boundaries */
+			if ( ! (scmd->flags & PADCMD_STRM_FLAG_CM) ) {
+				if ( ( (nsamples << sampsizld) & ((1<<LD_FRAG_SIZE)-1) ) ) {
+					UNLOCK();
+					return -EINVAL;
+				}
+				/* In row-major format all the data in a packet are
+				 * belonging to a single channel.
+				 */
+				nchannels = 1;
+			}
+
 			npkts    = nbytes >> LD_FRAG_SIZE;
-			nsamples = (1<<(LD_FRAG_SIZE - sampsizld)) / nchannels; 
+			nsamples  = (1<<(LD_FRAG_SIZE - sampsizld)) / nchannels; 
 		}
 
 		if ( ! peer.ip ) {
@@ -285,33 +311,44 @@ streamTest16(void *packetBuffer,
 			void *uarg)
 {
 int16_t *buf = packetBuffer;
-int i,j;
+int i,j,k,ch;
+
+	if ( nchannels < PADRPLY_STRM_NCHANNELS ) {
+		ch        = nchannels;
+		nchannels = 1;
+	} else {
+		ch        = 0;
+	}
+
+	k = idx*nsamples;
 	if ( !little_endian != bigEndian() ) {
 		if ( column_major ) {
+			k *= nchannels;
 			for (i=0; i<nsamples*nchannels; i+=nchannels) {
 				for (j=0; j<nchannels; j++) {
-					buf[i+j] = swap(i+(j<<4) + (idx<<8));
+					buf[i+j] = swap(i+k+j);
 				}
 			}
 		} else {
-			for (i=0; i<nsamples; i++) {
-				for (j=0; j<nchannels; j++) {
-					buf[i+j*nsamples] = swap(i+ (j<<4) + (idx<<8));
+			for (j=0; j<nchannels; j++, ch=j) {
+				for (i=0; i<nsamples; i++) {
+					buf[i+j*nsamples] = swap(i+k+(ch<<12));
 				}
 			}
 		}
 	} else {
 		#define swap(x)	(x)
 		if ( column_major ) {
+			k *= nchannels;
 			for (i=0; i<nsamples*nchannels; i+=nchannels) {
 				for (j=0; j<nchannels; j++) {
-					buf[i+j] = swap(i+ (j<<4) + (idx<<8));
+					buf[i+j] = swap(i+k+j);
 				}
 			}
 		} else {
-			for (i=0; i<nsamples; i++) {
-				for (j=0; j<nchannels; j++) {
-					buf[i+j*nsamples] = swap(i+ (j<<4) + (idx<<8));
+			for (j=0; j<nchannels; j++, ch=j) {
+				for (i=0; i<nsamples; i++) {
+					buf[i+j*nsamples] = swap(i+k+(ch<<12));
 				}
 			}
 		}
@@ -330,33 +367,44 @@ streamTest32(void *packetBuffer,
 			void *uarg)
 {
 int32_t *buf = packetBuffer;
-int i,j;
+int i,j,k,ch;
+
+	if ( nchannels < PADRPLY_STRM_NCHANNELS ) {
+		ch        = nchannels;
+		nchannels = 1;
+	} else {
+		ch        = 0;
+	}
+
+	k = idx*nsamples;
 	if ( !little_endian != bigEndian() ) {
 		if ( column_major ) {
+			k *= nchannels;
 			for (i=0; i<nsamples*nchannels; i+=nchannels) {
 				for ( j=0; j<nchannels; j++ ) {
-					buf[i+j] = swapl(i+ (j<<4) + (idx<<8));
+					buf[i+j] = swapl(i+k+j);
 				}
 			}
 		} else {
-			for (i=0; i<nsamples; i++) {
-				for ( j=0; j<nchannels; j++ ) {
-					buf[i+j*nsamples] = swapl(i+ (j<<4) + (idx<<8));
+			for ( j=0; j<nchannels; j++, ch=j ) {
+				for (i=0; i<nsamples; i++) {
+					buf[i+j*nsamples] = swapl(i+k+(ch<<16));
 				}
 			}
 		}
 	} else {
 		#define swapl(x)	(x)
 		if ( column_major ) {
+			k *= nchannels;
 			for (i=0; i<nsamples*nchannels; i+=nchannels) {
 				for ( j=0; j<nchannels; j++ ) {
-					buf[i+j] = swapl(i+ (j<<4) + (idx<<8));
+					buf[i+j] = swapl(i+k+j);
 				}
 			}
 		} else {
-			for (i=0; i<nsamples; i++) {
-				for ( j=0; j<nchannels; j++ ) {
-					buf[i+j*nsamples] = swapl(i+ (j<<4) + (idx<<8));
+			for ( j=0; j<nchannels; j++, ch=j ) {
+				for (i=0; i<nsamples; i++) {
+					buf[i+j*nsamples] = swapl(i+k+(ch<<16));
 				}
 			}
 		}
@@ -368,15 +416,16 @@ int i,j;
 static void *
 streamTest(void *packetBuffer,
 			int idx,
-			int nchannels,
+			int channels,
 			int nsamples,
 			int d32,
 			int little_endian,
 			int column_major,
 			void *uarg)
 {
-	return d32 ? streamTest32(packetBuffer, idx, nchannels, nsamples, little_endian, column_major, uarg) : 
-	             streamTest16(packetBuffer, idx, nchannels, nsamples, little_endian, column_major, uarg);
+	return d32 ? 
+        streamTest32(packetBuffer, idx, channels, nsamples, little_endian, column_major, uarg) :
+        streamTest16(packetBuffer, idx, channels, nsamples, little_endian, column_major, uarg);
 }
 
 
@@ -399,19 +448,27 @@ int32_t     *bufl = packetBuffer;
 int32_t      tmp[PADRPLY_STRM_NCHANNELS];
 PadStripSimVal ini  = uarg;
 int         swp;
-int         i,j;
+int         i,j,ch;
 static unsigned long noise = 1;
 
 	swp    = ( bigEndian() != !little_endian );
+	
+	if ( nchannels < PADRPLY_STRM_NCHANNELS ) {
+		ch = nchannels;
+		nchannels = 1;
+	} else {
+		ch = 0;
+	}
 
 	if ( d32 ) {
 		if ( swp ) {
-			for ( j=0; j<nchannels; j++ ) {
-				tmp[0] = swapl(ini->val[j]);
+			for ( j=0; j<nchannels; j++, ch=j ) {
+				tmp[j] = swapl(ini->val[ch]);
+
 			}
 		} else {
-			for ( j=0; j<nchannels; j++ ) {
-				tmp[0] = ini->val[j];
+			for ( j=0; j<nchannels; j++, ch=j ) {
+				tmp[j] = ini->val[j];
 			}
 		}
 		if ( column_major ) {
@@ -429,12 +486,12 @@ static unsigned long noise = 1;
 		}
 	} else {
 		if ( column_major ) {
-			for ( j=0; j<nchannels; j++ ) {
-				iir2_bpmsim(buf++, nsamples, ini->val[j], 0,  &noise, swp, nchannels);
+			for ( j=0; j<nchannels; j++, ch = j ) {
+				iir2_bpmsim(buf++, nsamples, ini->val[ch], 0,  &noise, swp, nchannels);
 			}
 		} else {
-			for ( j=0; j<nchannels; j++ ) {
-				iir2_bpmsim(buf, nsamples, ini->val[j], 0,  &noise, swp, 1);
+			for ( j=0; j<nchannels; j++, ch = j ) {
+				iir2_bpmsim(buf, nsamples, ini->val[ch], 0,  &noise, swp, 1);
 				buf += nsamples;
 			}
 		}
@@ -457,7 +514,7 @@ int            rval = 0;
 int            idx;
 PadReply       rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
 DrvLan9118_tps plan = lanIpBscIfGetDrv(intrf);
-int            len, nchannels;
+int            len, nchannels, ch;
 void          *data_p;
 uint32_t       now;
 struct timeval now_tv;
@@ -522,10 +579,23 @@ struct timeval now_tv;
 
 		drvLan9118FifoWr(plan, &replyPacket, UDPPKTSZ(sizeof(PadReplyRec)));
 
+		if ( ! (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ) {
+			if ( rply->strm_cmd_idx && ! (rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM) ) {
+				/* multi-fragment, row-major packet - request only a single channel! */
+printf("glox: idx %i, nchannels %i, npkts %i\n", idx, nchannels, npkts);
+				ch = idx * PADRPLY_STRM_NCHANNELS / npkts;
+				nchannels = 1;
+			} else {
+				ch = PADRPLY_STRM_NCHANNELS;
+			}
+		} else {
+			ch = 0;
+		}
+
 		if ( (data_p=getdata(
 						&rply->data,
 						idx,
-						nchannels,
+						ch,
 						nsamples, 
 						rply->strm_cmd_flags & PADCMD_STRM_FLAG_32,
 						rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
@@ -554,9 +624,9 @@ struct timeval now_tv;
 }
 
 int
-padStreamTest()
+padStreamTest(int type)
 {
-	return padStreamSend(streamTest, 0, 0);
+	return padStreamSend(streamTest, type, 0);
 }
 
 int

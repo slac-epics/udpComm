@@ -1,6 +1,6 @@
 #ifndef  WAVBUF_H
 #define  WAVBUF_H
-/* $Id: wavBuf.h,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
+/* $Id: wavBuf.h,v 1.2 2010/04/07 19:30:07 strauman Exp $ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -13,6 +13,8 @@ extern "C" {
 
 #define WAV_BUF_NUM_SLOTS	32
 #define WAV_BUF_NUM_KINDS	10
+
+#define WAV_BUF_NUM_SEGS    32
 
 /* Types */
 #define WavBufNone  	0
@@ -28,9 +30,14 @@ extern "C" {
 
 #define wavBufTypeSize(x) ((x)&0xf)
 
+typedef struct WavBufSegRec_ {
+	void           *data[WAV_BUF_NUM_SEGS];
+	int             nsegs;
+	uint16_t        m,n;   /* dimension of the segments */
+} WavBufSegRec, *WavBufSeg;
+
 typedef struct WavBufRec_ {
-	void           *data;
-	void           *data1;
+	WavBufSegRec   segs;
 	uint8_t        type;
 	uint8_t        flags;
 	uint16_t       stride;

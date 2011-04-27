@@ -13,6 +13,8 @@ LIBRARY_IOC_DEFAULT = udpCommBSD padSupport padUdpCommSupport
 LIBRARY_IOC_RTEMS   = udpCommBSD padSupport padUdpCommSupport udpComm
 
 PROD_HOST           = padProtoHost
+PROD_IOC_RTEMS      = padStreamTestSrv
+PROD                = padStreamTestClnt
 
 # SDDS_LIB is defined in the RELEASE file and points
 # to the local SDDS installation
@@ -42,6 +44,8 @@ USR_CPPFLAGS += $(SDDS_$(USE_SDDS)_CPPFLAGS) $(TEST_ONLY_$(TEST_ONLY)_CPPFLAGS)
 
 # install devXxxSoft.dbd into <top>/dbd
 DBD += padUdpCommSupport.dbd
+DBD += padStreamTestSrv.dbd
+DBD += padStreamTestClnt.dbd
 
 # The following are compiled and added to the Support libraries
 padSupport_SRCS += padProto.c
@@ -55,6 +59,21 @@ padSupport_SRCS += $(padSupport_SRCS_$(T_A))
 
 udpCommBSD_SRCS += udpCommBSD.c
 udpComm_SRCS    += udpComm.c
+
+padStreamTestSrv_SRCS += padStreamTestSrv_registerRecordDeviceDriver.cpp
+padStreamTestSrv_SRCS += drvPadStreamTestSrv.c
+padStreamTestSrv_LIBS += padSupport udpComm $(EPICS_BASE_IOC_LIBS)
+padStreamTestSrv_DBD  += base.dbd
+padStreamTestSrv_DBD  += drvPadStreamTestSrv.dbd
+
+padStreamTestClnt_SRCS_DEFAULT += padStreamTestClntMain.c
+padStreamTestClnt_SRCS_RTEMS   += -nil-
+padStreamTestClnt_SRCS += padStreamTestClnt_registerRecordDeviceDriver.cpp
+padStreamTestClnt_SRCS += padStreamTestClnt.c
+padStreamTestClnt_LIBS_DEFAULT = udpCommBSD
+padStreamTestClnt_LIBS_RTEMS   = udpComm
+padStreamTestClnt_LIBS += padUdpCommSupport padSupport $(EPICS_BASE_IOC_LIBS)
+padStreamTestClnt_DBD  += base.dbd drvPadStreamTestClnt.dbd padUdpCommSupport.dbd
 
 #===========================
 

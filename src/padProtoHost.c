@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.7 2011/04/22 18:08:48 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.8 2011/04/25 21:17:10 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -122,6 +122,76 @@ PadCommand        cmd = cmdp;
 }
 
 static void
+dump_hdr(PadReply rply)
+{
+	printf("// IDX: %i (MF: %i), TYPE %i\n",
+			PADRPLY_STRM_CMD_IDX_GET(rply->strm_cmd_idx),
+			(rply->strm_cmd_idx & PADRPLY_STRM_CMD_IDX_MF) ? 1 : 0,
+			PADRPLY_STRM_FLAG_TYPE_GET(rply->strm_cmd_flags));
+}
+
+static int
+defrag(int sd, PadReply rply, void **bufp)
+{
+UdpCommPkt   p = 0;
+int      ldssz = PADRPLY_STRM_LD_SZ( rply );
+int      sz    = (1 << ldssz) * PADRPLY_STRM_NSAMPLES( rply );
+int      got   = 0;
+int      max   = 0;
+int      idx;
+uint32_t xid   = rply->xid;
+int      last_seen = 0;
+void     *buf  = 0;
+int      rval  = 0;
+
+	*bufp = 0;
+
+	do {
+
+		dump_hdr( rply );
+
+		got++;
+		idx = PADRPLY_STRM_CMD_IDX_GET( rply->strm_cmd_idx );
+		if ( ! (rply->strm_cmd_idx & PADRPLY_STRM_CMD_IDX_MF) )
+			last_seen = 1;
+		if ( idx + 1 > max ) {
+			max = idx + 1;
+			buf = realloc( buf, sz * max );
+		}
+		memcpy( buf + idx * sz, rply->data, sz );
+
+printf("Defrag: got %i, max %i, idx %i, last_seen %i\n", got, max, idx, last_seen);
+		if ( last_seen && got == max )
+			break;
+
+		if ( p ) 
+			udpCommFreePacket( p );
+
+		if ( ! (p = udpCommRecv(sd, 1000000000)) )
+			goto bail;
+
+		rply = udpCommBufPtr( p );
+
+		if ( rply->xid != xid ) {
+			fprintf(stderr,"Fragment out of order detected - discarding all\n");
+			goto bail;
+		}
+
+	} while ( 1 );
+
+	*bufp = buf;
+	buf   = 0;	
+
+	rval = (max*sz) >> ldssz;
+
+bail:
+	if ( p )
+		udpCommFreePacket( p );
+	free( buf );
+	return rval;
+}
+
+static void
 streamdump(int sd)
 {
 UdpCommPkt        p;
@@ -135,9 +205,10 @@ union {
 	int32_t *l;
 	void    *r;
 }                 buf;
+void              *mem = 0;
 
 	while ( (p = udpCommRecv(sd, 1000000000)) ) {
-		rply = (PadReply)p;
+		rply = udpCommBufPtr( p );
 		if ( verbose ) 
 			dumpReply(rply);
 		if ( rply->type != (PADCMD_STRM | PADCMD_RPLY) ) {
@@ -156,17 +227,11 @@ union {
 
 
 		d32 = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? 1 : 0;
-		nchannels = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS;
 
-		sz = PADRPLY_STRM_NSAMPLES(rply);
+		nchannels = PADRPLY_STRM_CHANNELS_IN_STRM( rply );
+		sz        = defrag( sd, rply, &mem )/nchannels;
+		buf.r     = mem;
 
-		/* Dump packet */
-		buf.r = rply->data;
-
-		printf("// IDX: %i (MF: %i), TYPE %i\n",
-			PADRPLY_STRM_CMD_IDX_GET(rply->strm_cmd_idx),
-			(rply->strm_cmd_idx & PADRPLY_STRM_CMD_IDX_MF) ? 1 : 0,
-			PADRPLY_STRM_FLAG_TYPE_GET(rply->strm_cmd_flags));
 		/* always write out in fortran (scilab) format with
 		 * the samples going down the columns
 		 */
@@ -197,6 +262,10 @@ union {
 		}
 		printf("\n\n");
 		fflush(stdout);
+		if ( mem ) {
+			free( mem );	
+			mem = 0;
+		}
 		udpCommFreePacket(p);
 	}
 
@@ -210,7 +279,7 @@ int
 main(int argc, char **argv)
 {
 int               sd;
-int               type = -1;
+int               type      = -1;
 int               ch;
 int               i;
 union {

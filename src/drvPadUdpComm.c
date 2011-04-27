@@ -70,12 +70,13 @@
 #define PI   3.1415926535897932385
 #endif
 
+#define FRAG_MAX ((uintptr_t)(-1))
+
 #define RAD ((PI)/180.0)
 
 #ifdef __PPC__
 uint32_t	roundtripMax = 0;
 uint32_t	roundtripAvg = 0;
-
 #endif
 
 
@@ -101,6 +102,10 @@ struct {
 	PadRequestRec		req;
 	PadStrmCommandRec	cmd[MAX_BPM];
 } padStrmCmd;
+
+/* Cache # of samples per ADC */
+static unsigned         padNSamples[MAX_BPM];
+
 
 static epicsMutexId padStrmCmdLock;
 
@@ -159,6 +164,7 @@ int i;
 			padStrmCmd.cmd[i].flags |= PADCMD_STRM_FLAG_32;
 		padStrmCmd.cmd[i].port      = htons(drvPadUdpCommPort + 1);
 		padStrmCmd.cmd[i].nsamples  = htonl(drvPadUdpCommPrefs.nsamples);
+		padNSamples[i]              = drvPadUdpCommPrefs.nsamples;
 	}
 	padStrmCmdLock = epicsMutexMustCreate();
 }
@@ -166,13 +172,15 @@ int i;
 int
 drvPadUdpCommStrmStopReq(int channel)
 {
-int key, rval;
+int            key, rval;
 epicsTimeStamp ts;
+uint32_t       old_val;
 
 	if ( channel < 0 || channel >= MAX_BPM )
 		return -1;
 
 	key = epicsInterruptLock();
+		old_val = (drvPadUdpCommChannelsInUseMask & (1<<channel));
 		drvPadUdpCommChannelsInUseMask &= ~(1<<channel);
 	epicsInterruptUnlock(key);
 
@@ -188,12 +196,19 @@ epicsTimeStamp ts;
 	rval = io.padIoReq(
 				drvPadUdpCommSd,
 				channel,
-				PADCMD_STOP | PADCMD_QUIET,
+				PADCMD_STOP,
 				drvPadUdpCommGetXid(),
 				htonl(ts.secPastEpoch), htonl(ts.nsec),
 				0,
 				0,
 				drvPadUdpCommTimeout);
+
+	if ( rval ) {
+		key = epicsInterruptLock();
+			drvPadUdpCommChannelsInUseMask |= old_val;
+		epicsInterruptUnlock(key);
+		epicsPrintf("drvPadUdpCommStrmStopReq: Unable to stop stream: %s\n", strerror(-rval));
+	}
 
 	return rval;
 }
@@ -228,6 +243,11 @@ epicsTimeStamp    ts;
 					0,
 					drvPadUdpCommTimeout);
 
+	if ( rval ) {
+		epicsPrintf("drvPadUdpCommStrmStartReq: Unable to start stream: %s\n", strerror(rval));
+		return rval;
+	}
+
 	key = epicsInterruptLock();
 		drvPadUdpCommChannelsInUseMask |= (1<<channel);
 	epicsInterruptUnlock(key);
@@ -236,43 +256,111 @@ epicsTimeStamp    ts;
 }
 
 int
+drvPadUdpCommStrmSetNChannels(int padChannel, int adcNChannels)
+{
+int rval;
+
+	if ( (padChannel < 0 && adcNChannels <= 0) || padChannel >= MAX_BPM ) {
+		/* invalid argument */
+		return -1;
+	}
+
+	if ( adcNChannels <= 0 ) {
+		epicsMutexLock(padStrmCmdLock);
+			rval = ((padStrmCmd.cmd[padChannel].flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS);
+		epicsMutexUnlock(padStrmCmdLock);
+		return rval;
+	}
+
+	if ( ! drvPadUdpCommPrefs.nchannels_dynamic ) {
+		epicsPrintf("drvPadUdpCommStrmSetNChannels: client-driver forbids changing sample number\n");
+		return -1;
+	}
+
+	if ( adcNChannels != 1 && adcNChannels != PADRPLY_STRM_NCHANNELS ) {
+		epicsPrintf("drvPadUdpCommStrmSetNChannels: unsupported # of channels: %u\n", adcNChannels);
+		return -1;
+	}
+
+	epicsMutexLock(padStrmCmdLock);
+	if ( padChannel < 0 ) {
+		if ( (drvPadUdpCommChannelsInUseMask & ((1<<MAX_BPM)-1)) ) {
+			epicsMutexUnlock(padStrmCmdLock);
+			epicsPrintf("drvPadUdpCommSetNChannels: cannot change #-of ADC channels while any padChannel is started/streaming\n");
+			return -1;
+		}
+		for ( padChannel = 0; padChannel < MAX_BPM; padChannel++ ) {
+			if ( PADRPLY_STRM_NCHANNELS == adcNChannels )
+				padStrmCmd.cmd[padChannel].flags &= ~ PADCMD_STRM_FLAG_C1;
+			else
+				padStrmCmd.cmd[padChannel].flags |=   PADCMD_STRM_FLAG_C1;
+		}
+		rval = 0;
+	} else {
+		if ( (drvPadUdpCommChannelsInUseMask & (1<<padChannel)) ) {
+			epicsMutexUnlock(padStrmCmdLock);
+			epicsPrintf("drvPadUdpCommSetNChannels: cannot change #-of ADC channels while padChannel is started/streaming\n");
+			return -1;
+		}
+		rval = ((padStrmCmd.cmd[padChannel].flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS);
+		if ( PADRPLY_STRM_NCHANNELS == adcNChannels )
+			padStrmCmd.cmd[padChannel].flags &= ~ PADCMD_STRM_FLAG_C1;
+		else
+			padStrmCmd.cmd[padChannel].flags |=   PADCMD_STRM_FLAG_C1;
+	}
+	epicsMutexUnlock(padStrmCmdLock);
+
+	return rval;
+}
+
+int
 drvPadUdpCommStrmSetNSamples(int channel, int nsamples)
 {
 int rval;
+int nsamples_rev;
+
+#if 0
+	if ( nsamples > 170 ) {
+		/* wouldn't fit into std. ethernet packet */
+		return -1;
+	}
+#endif
+
+	if ( (channel < 0 && nsamples <= 0) || channel >= MAX_BPM )
+		return -1;
+
+	if ( nsamples <= 0 ) {
+		return padNSamples[channel];
+	}
 
 	if ( ! drvPadUdpCommPrefs.nsamples_dynamic ) {
 		epicsPrintf("drvPadUdpCommStrmSetNSamples: client-driver forbids changing sample number\n");
 		return -1;
 	}
 
-	if ( nsamples > 170 ) {
-		/* wouldn't fit into std. ethernet packet */
-		return -1;
-	}
-
-	if ( channel < 0 || channel >= MAX_BPM )
-		return -1;
-
-	if ( channel < 0 && nsamples <= 0 )
-		return -1;
-
-	if ( nsamples <= 0 ) {
-		epicsMutexLock(padStrmCmdLock);
-		rval = ntohl(padStrmCmd.cmd[channel].nsamples);
-		epicsMutexUnlock(padStrmCmdLock);
-		return rval;
-	}
-
-	nsamples = htonl(nsamples);
+	nsamples_rev = htonl(nsamples);
 
 	epicsMutexLock(padStrmCmdLock);
 	if ( channel < 0 ) {
-		for ( channel = 0; channel < MAX_BPM; channel++ )
-			padStrmCmd.cmd[channel].nsamples = nsamples;
+		if ( (drvPadUdpCommChannelsInUseMask & ((1<<MAX_BPM)-1)) ) {
+			epicsMutexUnlock(padStrmCmdLock);
+			epicsPrintf("drvPadUdpCommSetNSamples: cannot change #-of samples while any channel is started/streaming\n");
+			return -1;
+		}
+		for ( channel = 0; channel < MAX_BPM; channel++ ) {
+			padStrmCmd.cmd[channel].nsamples = nsamples_rev;
+			padNSamples[channel]             = nsamples;
+		}
 		rval = 0;
 	} else {
-		rval = ntohl(padStrmCmd.cmd[channel].nsamples);
-		padStrmCmd.cmd[channel].nsamples = nsamples;
+		if ( (drvPadUdpCommChannelsInUseMask & (1<<channel)) ) {
+			epicsMutexUnlock(padStrmCmdLock);
+			epicsPrintf("drvPadUdpCommSetNSamples: cannot change #-of samples while channel is started/streaming\n");
+			return -1;
+		}
+		rval = padNSamples[channel];
+		padStrmCmd.cmd[channel].nsamples = nsamples_rev;
+		padNSamples[channel]             = nsamples;
 	}
 	epicsMutexUnlock(padStrmCmdLock);
 
@@ -302,6 +390,8 @@ double drvPadUdpCommStrmTimeout = 5.0;
 char *drvPadUdpCommPeer   = 0;
 uint32_t drvPadUdpCommPeerAddr = INADDR_NONE;
 
+WavBuf wbStaged[WAV_BUF_NUM_SLOTS][WAV_BUF_NUM_KINDS] = {{0}};
+
 PadReply
 padReplyFind(void *data_p)
 {
@@ -311,7 +401,14 @@ padReplyFind(void *data_p)
 int
 padDataFree(WavBuf wb)
 {
-	io.free(wb->usrData);
+int  i;
+void *p;
+	for ( i=0; i<wb->segs.nsegs; i++ ) {
+		if ( wb->segs.data[i] ) {
+			p = (void*)((uintptr_t)wb->segs.data[i] - (uintptr_t)((PadReply)io.bufptr(0))->data);
+			io.free( p );
+		}
+	}
 	return 0;
 }
 
@@ -412,56 +509,118 @@ epicsTimeStamp ts;
 	return rval;
 }
 
-static void
+static int
 drvPadUdpCommPostRaw(UdpCommPkt pkt, PadDataKind kind)
 {
-WavBuf   pb;
+WavBuf   pb = 0;
 PadReply rply;
 unsigned chan;
-unsigned nsamples;
+unsigned idx;
+int      rval = -1;
 
 	if ( !pkt )
-		return;
+		return rval;
 
 	rply     = padReplyFind(pkt);
 
 	chan     = rply->chnl;
-	nsamples = PADRPLY_STRM_NSAMPLES(rply);
 
-	if ( !(pb = wavBufAlloc()) ) {
-		/* Just drop */
-		epicsPrintf("drvPadUdpCommListener: unable to get waveform buf header -- configure more!!\n");
-		io.free(pkt);
-		return;
+	if ( chan >= WAV_BUF_NUM_SLOTS || (unsigned)kind >= WAV_BUF_NUM_KINDS ) {
+		epicsPrintf("drvPadUdpCommPostRaw: invalid chan/kind (%u/%u), dropping...\n", chan, kind);
+		goto bail;
 	}
-	pb->free = padDataFree; 
-	if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
-		pb->flags = WavBufFlagCM;
-	} else {
-		pb->flags = 0;
-	}
-	pb->type    = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16;
-	pb->m       = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS;
-	pb->n       = nsamples;
-	pb->usrData = pkt;
-	pb->data    = rply->data;
-	pb->ts.secPastEpoch = ntohl(rply->timestampHi);
-	pb->ts.nsec         = ntohl(rply->timestampLo);
 
-	/* send buffer for waveforms to pick up */
-	if ( 0 == wavBufPost(chan, kind, pb) ) {
-			pkt = 0;
-			pb  = 0;
-	} else {
-		/* This releases the packet, too */
-		wavBufFree(pb);
+	if ( (pb = wbStaged[chan][kind]) ) {
+		if ( pb->type != ((rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16) ) {
+			epicsPrintf("drvPadUdpCommPostRaw: inconsistent type (%u), dropping\n", pb->type);
+			goto bail;
+		}
+		if ( pb->m    != PADRPLY_STRM_CHANNELS_IN_STRM(rply) ) {
+			epicsPrintf("drvPadUdpCommPostRaw: inconsistent m-rows, dropping\n");
+			goto bail;
+		}
+		if ( pb->segs.n != PADRPLY_STRM_NSAMPLES( rply ) / pb->segs.m ) {
+			epicsPrintf("drvPadUdpCommPostRaw: inconsistent segment size, dropping\n");
+			goto bail;
+		}
+		if ( rply->xid != ((PadReply)((uintptr_t)pb->segs.data[pb->segs.nsegs-1] - (uintptr_t)((PadReply)0)->data))->xid ) {
+			/* fragment already part of a new stream packet */
+			wavBufFree( pb );
+			pb = wbStaged[chan][kind] = 0;
+		}
 	}
+
+	if ( ! pb ) {
+		if ( !(pb = wavBufAlloc()) ) {
+			/* Just drop */
+			epicsPrintf("drvPadUdpCommPostRaw: unable to get waveform buf header -- configure more!!\n");
+			goto bail;
+		}
+		pb->free = padDataFree; 
+		if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
+			pb->flags = WavBufFlagCM;
+		} else {
+			pb->flags = 0;
+		}
+		pb->type    = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16;
+		pb->m       = PADRPLY_STRM_CHANNELS_IN_STRM( rply );
+		pb->segs.m  = PADRPLY_STRM_CHANNELS_IN_FRAG( rply );
+		pb->segs.n  = PADRPLY_STRM_NSAMPLES( rply ) / pb->segs.m;
+		/* pb->n is only known once we have the last fragment */
+		pb->usrData = (void*)FRAG_MAX;
+		pb->ts.secPastEpoch  = ntohl(rply->timestampHi);
+		pb->ts.nsec          = ntohl(rply->timestampLo);
+	}
+
+	idx = PADRPLY_STRM_CMD_IDX_GET( rply->strm_cmd_idx );
+
+	if ( idx >= WAV_BUF_NUM_SEGS ) {
+		epicsPrintf("drvPadUdpCommPostRaw: number of segments too big; dropping\n");
+		goto bail;
+	}
+
+	if ( idx + 1 > pb->segs.nsegs )
+		pb->segs.nsegs = idx + 1;
+	pb->segs.data[idx] = rply->data;
+	pkt                = 0;
+
+	if ( ! (PADRPLY_STRM_CMD_IDX_MF & rply->strm_cmd_idx) ) {
+		/* found the last fragment */
+		pb->usrData = (void*)( (uintptr_t)pb->usrData - FRAG_MAX + idx + 1 - 1 );
+		pb->n       = (idx + 1) * PADRPLY_STRM_NSAMPLES(rply) / pb->m;
+	} else {
+		pb->usrData = (void*)( (uintptr_t)pb->usrData - 1 );
+	}
+
+	if ( 0 == (uintptr_t)pb->usrData ) {
+		/* All fragments assembled */
+
+		/* send buffer for waveforms to pick up */
+		if ( 0 == wavBufPost(chan, kind, pb) ) {
+			rval = 0;
+		} else {
+			/* This releases the packet, too */
+			wavBufFree(pb);
+		}
+		pb = 0;
+	}
+	wbStaged[chan][kind] = pb;
+	pb                   = 0;
+
+bail:
+	if ( pb ) {
+		wavBufFree( pb );
+		wbStaged[chan][kind] = 0;
+	}
+	if ( pkt )
+		io.free( pkt );
+	return rval;
 }
 
-void
+int
 drvPadUdpCommPostReply(PadReply rply, PadDataKind kind)
 {
-	drvPadUdpCommPostRaw( (UdpCommPkt)( (uintptr_t)rply - (uintptr_t)io.bufptr(0) ) , kind);
+	return drvPadUdpCommPostRaw( (UdpCommPkt)( (uintptr_t)rply - (uintptr_t)io.bufptr(0) ) , kind);
 }
 
 static void
@@ -476,6 +635,7 @@ unsigned    nsamples;
 int         layout_cm;
 int         cook_stat;
 int         key;
+int         posted;
 epicsTimeStamp         now;
 DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
 DrvPadUdpCommHWTime    tDiff;
@@ -526,7 +686,11 @@ int         bad_version_count = 0;
 #endif
 
 		chan     = rply->chnl;
-		nsamples = PADRPLY_STRM_NSAMPLES(rply);
+		/* Don't bother to take the padStrmCmdLock -- the
+		 * stream must be stopped for [chan] while the number
+		 * can be modified.
+		 */
+		nsamples = padNSamples[chan];
 
 		if ( chan >= MAX_BPM ) {
 			/* drop invalid channels */
@@ -560,8 +724,14 @@ int         bad_version_count = 0;
 #endif
 
 		if ( drvPadUdpCommDebug & 1 ) {
-			errlogPrintf("STRM: C %2u N %3u K %1u TS: 0x%08"PRIx32" XID: 0x%08"PRIx32"\n",
-				chan, nsamples, kind, ntohl(rply->timestampLo), ntohl(rply->xid));
+			errlogPrintf("STRM: C %2u IDX %3u %s N %3u K %1u TS: 0x%08"PRIx32" XID: 0x%08"PRIx32"\n",
+				chan,
+				PADRPLY_STRM_CMD_IDX_GET(rply->strm_cmd_idx),
+				(PADRPLY_STRM_CMD_IDX_MF & rply->strm_cmd_idx) ? "(MF)":"    ",
+				nsamples,
+				kind,
+				ntohl(rply->timestampLo),
+				ntohl(rply->xid));
 		}
 
 		if ( cb->cook ) {
@@ -569,6 +739,8 @@ int         bad_version_count = 0;
 		} else {
 			cook_stat = -1;
 		}
+
+		posted = 0;
 
 		if ( cook_stat >= 0 ) {
 			/* Pet up-to-date status */
@@ -583,7 +755,8 @@ int         bad_version_count = 0;
 					cook_stat = 0;
 					/* fall thru */
 				case PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_NOSCAN:
-					drvPadUdpCommPostRaw( pkt, new_kind );
+					if (0 == drvPadUdpCommPostRaw( pkt, new_kind ))
+						posted++;
 					pkt = 0;
 					/* fall thru */
 				default:
@@ -595,14 +768,15 @@ int         bad_version_count = 0;
 			continue;
 
 		/* If pkt is NULL this doesn't do anything */
-		drvPadUdpCommPostRaw( pkt, kind );
+		if ( 0 == drvPadUdpCommPostRaw( pkt, kind ) )
+			posted++;
 		pkt = 0;
 
 		/* Scan lists only on the beam pulse. Waveforms
 		 * listening to the cal pulses will also be on
 		 * the same scanlist.
 		 */
-		if ( PadDataBpm == kind ) {
+		if ( PadDataBpm == kind && posted ) {
 			scanIoRequest(scanlist[chan]);
 			epicsTimeGetCurrent(&now);
 			if ( now.secPastEpoch - lastTimeDiagScanned[chan] >= DIAG_SCAN_LIMIT ) {

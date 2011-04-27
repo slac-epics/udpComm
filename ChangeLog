@@ -1,3 +1,7 @@
+20110427 (T.S.)
+ - first stab at supporting fragmented streams. This is still untested
+   and is 'hackish' since it was done very quickly and could not be
+   designed from scratch (bwds compatibility).
 20110425 (T.S.)
  - src/hostStream.c, src/padProto.h, src/padStream.c: removed implicit
    4-channel assumption (NCHANS).

@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.7 2011/04/22 18:08:48 strauman Exp $ */
+/* $Id: padProto.h,v 1.8 2011/04/25 21:17:34 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -59,15 +59,35 @@ typedef struct PadCommandRec_ {
 /* Sample size is sizeof(int16_t) */
 #define PADRPLY_STRM_NCHANNELS	4
 #define PADRPLY_STRM_LD_SZ(r)   (((r)->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? 2 : 1)
+
+/* Number of samples in a packet */
 #define PADRPLY_STRM_NSAMPLES(r)                                           \
-	(((ntohs((r)->nBytes) - sizeof(PadReplyRec)) >> PADRPLY_STRM_LD_SZ(r)) \
-	/(((r)->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS))
+	((ntohs((r)->nBytes) - sizeof(PadReplyRec)) >> PADRPLY_STRM_LD_SZ(r))
+
+/* Number of channels transmitted in the stream. Note that a fragment
+ * of a row-major stream only contains data for a single channel. The
+ * number returned by PADRPLY_STRM_NCHANNELS() conveys the number of
+ * the channels in the stream, not in a particular fragment.
+ */
+#define PADRPLY_STRM_CHANNELS_IN_STRM(r) (((r)->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS)
+
+/* How many channels are in a single fragment?
+ * In CM format, this is equal to the number of channels in the stream.
+ * However, in RM format there is only a single channel in a fragmented
+ * stream.
+ */
+#define PADRPLY_STRM_CHANNELS_IN_FRAG(r) \
+	( (   ! ((r)->strm_cmd_flags & PADCMD_STRM_FLAG_CM) &&	PADRPLY_STRM_IS_FRAGMENTED(r) ) \
+     ?  1 : PADRPLY_STRM_CHANNELS_IN_STRM(r) )
+
+#define PADRPLY_STRM_IS_FRAGMENTED(r) (!! (r)->strm_cmd_idx)
 
 typedef struct PadStrmCommandRec_ {
 	int8_t		type;			/* PADCMD_XX                           */
 	uint8_t		flags;			/* echoed in 'spec[0]' of reply        */
 	uint16_t	port;			/* port where to send data             */
 	uint32_t	nsamples;		/* # samples per channel               */
+	uint8_t     pad[3];
 } __attribute__((may_alias)) PadStrmCommandRec, *PadStrmCommand;
 
 typedef struct PadSimCommandRec_ {
@@ -98,6 +118,51 @@ typedef struct PadRequestRec_ {
 	uint8_t		data[];
 } __attribute__((may_alias)) PadRequestRec, *PadRequest;
 /* appended here are |nCmds| PadCommandRecs */
+
+/* We have a hard time to squeeze additional information into a stream
+ * reply which is required for fragmented streams.
+ * A fragmented, four-channel, row-major stream should convey some
+ * information about its layout -- otherwise, the receiver has to
+ * buffer all packets (or implicitly know about the layout) before
+ * it can figure it out.
+ *
+ * A fragmented stream is transmitted as follows:
+ *
+ *   strm_cmd_idx:   Contains the packet index and a 'more-fragments' (MF)
+ *                   flag. 'MF' is set on all but the last fragment. A
+ *                   fragmented stream can be detected simply by testing
+ *                   strm_cmd_idx which can be zero only for a non-fragmented
+ *                   stream. HOWEVER: ALWAYS use the macros defined below
+ *                   since the implementation may change!
+ *
+ * The implementation restricts fragmented streams to a payload size
+ * of 1024 bytes. Hence, the number of channels and samples must be
+ * chosen to meet that restriction.
+ *
+ * Column-major layout: CM can be transmitted in a straightforward
+ *                   manner.
+ *
+ * Row-major layout: This format requires some attention. In order to keep
+ *                   things simple the implementation requires that
+ *                   row-boundaries *must* coincide with packet boundaries.
+ *                   Together with the 1k payload requirement this means
+ *                   that sample numbers per channel must be multiples of
+ *                   512 (16bit data) or 256 (32-bit data), respectively.
+ *
+ *                   The number of channels the stream contains is indicated
+ *                   by the '_C1' flag (but the user should ALWAYS use the
+ *                   macros to figure out the number of channels rather than
+ *                   testing the flag directly since the implementation may
+ *                   change).
+ *
+ *                   HOWEVER: A packet of a fragmented, row-major stream 
+ *                   only contains data associated with a single channel.
+ *                   In order to find out how many packets make up a
+ *                   row of data the user must either know this or know
+ *                   the total number of samples (which is known once
+ *                   all fragments arrive and can be divided by the number
+ *                   of channels in the stream).
+ */
 
 typedef struct PadReplyRec_ {
 	uint8_t		version;		/* Protocol version                    */

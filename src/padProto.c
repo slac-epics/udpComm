@@ -194,7 +194,6 @@ int32_t			err  = 0;
 
 volatile int padudpkilled = 0;
 
-
 int
 padUdpHandler(uint32_t mcaddr, int port, int me, int tout_ms, int (*poll_cb)(void*), void *cb_arg)
 {
@@ -311,11 +310,12 @@ UdpCommPkt  p;
 			if ( (p = udpCommRecv(sd, timeout_ms)) ) {
 				rep = (PadReply)udpCommBufPtr(p);
 				if ( rep->type == (type | PADCMD_RPLY) && rep->xid == htonl(xid) ) {
+					rval = (int)(int8_t)rep->stat;
 					if ( wantReply )
 						*wantReply = p;
 					else
 						udpCommFreePacket(p);
-					return 0;
+					return rval;
 				} else {
 #ifdef DEBUG
 					if ( (padProtoDebug & DEBUG_REPLYCHK) ) {

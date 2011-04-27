@@ -1,4 +1,4 @@
-/* $Id: wavBuf.c,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
+/* $Id: wavBuf.c,v 1.2 2011/04/21 19:42:38 strauman Exp $ */
 
 #include <epicsInterrupt.h>
 #include "wavBuf.h"
@@ -9,7 +9,7 @@
 
 #define NUM_BUFHDS (WAV_BUF_NUM_SLOTS*WAV_BUF_NUM_KINDS*3)
 
-WavBufRec wavBufPool[NUM_BUFHDS] = { {0} };
+WavBufRec wavBufPool[NUM_BUFHDS] = { {{{0}}} };
 WavBuf    wavBufFreeList = 0;
 
 WavBuf    wavBufQ[WAV_BUF_NUM_SLOTS][WAV_BUF_NUM_KINDS] = { {0} };
@@ -24,9 +24,10 @@ static int i = 0;
 	if ( i )
 		return;
 	for (i=0; i<NUM_BUFHDS-1; i++) {
-		wavBufPool[i].data = &wavBufPool[i+1];
+		wavBufPool[i].segs.data[0] = &wavBufPool[i+1];
+		wavBufPool[i].segs.nsegs = 0;
 	}
-	wavBufPool[i].data = 0;
+	wavBufPool[i].segs.data[0] = 0;
 	wavBufFreeList = wavBufPool;
 }
 
@@ -38,7 +39,7 @@ WavBuf  rval;
 int key = epicsInterruptLock();
 
 	if ( (rval = wavBufFreeList) ) {
-		wavBufFreeList = rval->data;
+		wavBufFreeList = rval->segs.data[0];
 	}
 	epicsInterruptUnlock(key);
 
@@ -59,7 +60,7 @@ int key;
 
 	memset(buf,0,sizeof(*buf));
 	key = epicsInterruptLock();
-		buf->data = wavBufFreeList;
+		buf->segs.data[0] = wavBufFreeList;
 		wavBufFreeList = buf;
 	epicsInterruptUnlock(key);
 }
@@ -68,21 +69,21 @@ void
 wavBufFree(WavBuf buf)
 {
 int doFreeHdr;
+int i;
 
 	if ( !buf )
 		return;
 
 	if ( ! buf->free ) {
 		/* If they don't provide a free routine use 'free' */
-		free(buf->data);
-		free(buf->data1);
+		for ( i=0; i<buf->segs.nsegs; i++ )
+			free(buf->segs.data[i]);
 		doFreeHdr = 1;
 	} else {
 		doFreeHdr = (0 == buf->free(buf));
 	}
 	if ( doFreeHdr )
 		wavBufFreeHdr(buf);
-		
 }
 
 static WavBuf

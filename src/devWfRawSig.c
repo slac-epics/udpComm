@@ -1,4 +1,4 @@
-/* $Id: devWfRawSig.c,v 1.10 2010/01/18 19:16:50 strauman Exp $ */
+/* $Id: devWfRawSig.c,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
 
 /*=============================================================================
  
@@ -41,6 +41,7 @@
 #include <dbEvent.h>
 #include <dbAccess.h>
 #include <recGbl.h>
+#include <cantProceed.h>
 
 #include "wavBuf.h"
 #ifndef WITHOUT_UDPCOMM_IOINT
@@ -51,6 +52,9 @@
 #define DEVSUPNAM	"devWfRawSig"
 
 #define DEBUG_PROC	1
+
+#define SEG_RE      0
+#define SEG_IM      1
 
 int    devWfRawSigDebug = 0;
 
@@ -153,163 +157,287 @@ DevWfRawSigDpvt_tps dpvt_ps      = waveform_ps->dpvt;
 }
 #endif
 
+
+/* Copy one segment buffer; This could be useful if ever some sort of 'piplined'
+ * processing is implemented (copy segments/fragments into BPTR as packets arrive)
+ */
 static void
-wbCpyGeneric(waveformRecord *waveform_ps, WavBuf wb, int sz, int n)
+wbCpySeg(waveformRecord *waveform_ps, WavBuf wb, int sz, int n_tot, int s) __attribute__((unused));
+
+static void
+wbCpySeg(waveformRecord *waveform_ps, WavBuf wb, int sz, int n_tot, int s)
 {
-uint8_t *d_p, *s_p;
-int     i,j,mnsz,msz,ilim;
+int      i,j,lastj,iinc, jinc, ilim, rowsz, jlim, dinc, n_frag;
+uint8_t  *d_p, *s_p;
 
-	d_p = waveform_ps->bptr;
-	s_p = wb->data;
+	/* If the segment describes a vector then our job is easy */
+	if ( wb->segs.n == 1 || wb->segs.m == 1 ) {
+		n_frag = (1 == wb->segs.m ? wb->segs.n : wb->segs.m);
 
-	/* deal with the case where destination < source area */
-	ilim = n/wb->n;
+		i     = s * n_frag;
+		rowsz = n_frag;
+
+		if ( i + rowsz > n_tot ) {
+			rowsz = n_tot - i;
+			if ( rowsz <= 0 )
+				return;
+		}
+
+		memcpy( waveform_ps->bptr + i*sz, wb->segs.data[s], rowsz * sz );
+		return;	
+	}
+
+	n_frag = wb->segs.n;
+
+	d_p = waveform_ps->bptr + s * n_frag * sz;
+	s_p = wb->segs.data[s];
+
+	ilim  = (n_tot - (s+1)*n_frag)/wb->n + 1;
 
 	if ( wb->flags & WavBufFlagCM ) {
-		/* transpose */
-
-		msz  = ( wb->stride > wb->m ? wb->stride : wb->m ) * sz;
-		mnsz = wb->n * msz;
-
-		for ( i = 0; i < ilim*sz; i+=sz ) {
-			for ( j = 0; j< mnsz; j+=msz ) {
-				memcpy(d_p, s_p + i + j, sz);
-				d_p += sz;
-			}
-		}
-		for ( j = 0; j< (n-ilim*wb->n)*msz; j+=msz ) {
-			memcpy(d_p, s_p + i + j, sz);
-			d_p += sz;
-		}
+		iinc  = sz;
+		jinc  = sz * (wb->stride > wb->segs.m ? wb->stride : wb->segs.m);
+		rowsz = sz;
+		jlim  = jinc * wb->segs.n;
+		dinc  = (wb->n - n_frag) * sz;
 	} else {
-		if ( wb->stride > wb->n ) {
-			for ( i=0; i< ilim; i++ ) {
-				memcpy(d_p, s_p, wb->n * sz);
-				d_p += wb->n * sz; 
-				s_p += wb->stride * sz;
-			}
-			/* memcpy should handle the case where nothing is to be
-			 * copied...
-			 */
-			memcpy(d_p, s_p, (n - ilim*wb->n)*sz);
+		iinc  = sz * (wb->stride > wb->segs.n ? wb->stride : wb->segs.n);
+		rowsz = sz * wb->segs.n;
+		jinc  = rowsz;
+		jlim  = sz * wb->segs.n;
+	}
+
+	for ( i = 0; i < ilim*iinc; i += iinc ) {
+		for ( j = 0; j < jlim; j += jinc ) {
+			memcpy( d_p, s_p + i + j, rowsz );
+			d_p += rowsz;
+		}
+		d_p += dinc;
+	}
+
+	lastj = n_tot - ilim * wb->n - s * n_frag;
+
+	if ( lastj > 0 ) {
+
+		if ( wb->flags & WavBufFlagCM ) {
+			jlim = lastj * jinc;
 		} else {
-			memcpy(d_p, s_p, n * sz);
+			jlim = lastj * sz;
+		}
+
+		if ( rowsz > lastj * sz )
+			rowsz = lastj * sz;
+
+		for ( j=0; j < jlim; j += jinc ) {
+			memcpy( d_p, s_p + i + j, rowsz );
+			d_p += rowsz;
 		}
 	}
 }
 
 static void
-wbCpyCplxA(waveformRecord *waveform_ps, WavBuf wb, int n, double *pMin, double *pMax)
+wbCpyGeneric(waveformRecord *waveform_ps, WavBuf wb, int sz, int n_tot)
 {
-int i,j,ilim,iinc,jinc;
+uint8_t  *d_p, *s_p;
+int      i,j,s,n,iinc,jinc,jlim,rowsz;
 
-float *re_p = wb->data;
-float *im_p = wb->data1;
-float *dt_p = waveform_ps->bptr;
+	d_p = waveform_ps->bptr;
+	n   = n_tot;
+
+#if 1
+	/* Optimize if segments are only vectors */
+	if ( wb->segs.m == 1 || wb->segs.n == 1 ) {
+		i = wb->segs.m == 1 ? wb->segs.n : wb->segs.m;
+		iinc  = sz * wb->n; /* stride is ignored since we have only one vector */
+		jinc  = sz * i;
+		rowsz = sz * i;
+		jlim  = jinc;
+	} else {
+		/* 'normal case' */
+		if ( wb->flags & WavBufFlagCM ) {
+			iinc  = sz;
+			jinc  = sz * (wb->stride > wb->segs.m ? wb->stride : wb->segs.m);
+			rowsz = sz;
+			jlim  = jinc * wb->segs.n;
+		} else {
+			iinc  = sz * (wb->stride > wb->n ? wb->stride : wb->n);
+			jinc  = sz * wb->segs.n;
+			rowsz = sz * wb->segs.n;
+			jlim  = jinc;
+		}
+	}
+	s     = 0;
+	i     = 0;
+	j     = 0;
+	n    *= sz;
+	s_p   = wb->segs.data[s];
+	do {
+		while ( n >= rowsz ) {
+			if ( s_p )
+				memcpy( d_p, s_p + i + j, rowsz );
+			else
+				memset( d_p, 0,           rowsz );
+			d_p += rowsz;
+			n   -= rowsz;
+			j   += jinc;
+			if ( j >= jlim ) {
+				j = 0;
+				if ( ++s >= wb->segs.nsegs ) {
+					/* next row */
+					s  = 0;
+					i += iinc;
+				}
+				s_p = wb->segs.data[s];
+			}
+		}
+		rowsz = n;
+	} while ( n > 0 );
+
+#else
+	/* This is less efficient; leave here for testing */
+	for ( s=0; s<wb->segs.nsegs; s++ )
+		wbCpySeg(waveform_ps, wb, sz, n_tot, s);
+#endif
+
+}
+
+static void
+wbCpyCplxA(waveformRecord *waveform_ps, WavBuf wb, int n_tot, double *pMin, double *pMax)
+{
+int i,j,n,s,jlim,iinc,jinc;
+float *re_p;
+float *im_p;
+float *dt_p;
 double min = *pMin, max = *pMax;
+
 
 	if ( wb->flags & WavBufFlagCM ) {
 		/* transpose */
 		iinc = 1;
-		jinc = wb->stride > wb->m ? wb->stride : wb->m;
+		jinc = wb->stride > wb->segs.m ? wb->stride : wb->segs.m;
+		jlim = jinc * wb->segs.n;
 	} else {
 		iinc = wb->stride > wb->n ? wb->stride : wb->n;
 		jinc = 1;
+		jlim = wb->segs.n;
 	}
 
-	/* deal with the case where destination < source area */
-	ilim = n/wb->n;
+	s = i = j = 0;
 
-	for ( i = 0; i < ilim*iinc; i+=iinc ) {
-		for ( j = 0; j< wb->n * jinc; j+=jinc ) {
-			*dt_p = hypotf(re_p[i+j],im_p[i+j]);
-			if ( *dt_p > max )
-				max = *dt_p;
-			else if ( *dt_p < max )
-				min = *dt_p;
-			dt_p++;
-		}
-	}
-	for ( j = 0; j< (n-ilim*wb->n)*jinc; j+=jinc ) {
+	re_p  = wb->segs.data[s + SEG_RE];
+	im_p  = wb->segs.data[s + SEG_IM];
+
+	dt_p = waveform_ps->bptr;
+	n    = n_tot;
+	while ( n > 0 ) {
 		*dt_p = hypotf(re_p[i+j],im_p[i+j]);
+
 		if ( *dt_p > max )
 			max = *dt_p;
 		else if ( *dt_p < max )
 			min = *dt_p;
 		dt_p++;
+		n--;
+		j += jinc;
+		if ( j >= jlim ) {
+			j  = 0;
+			s += 2;
+			if ( s  >= wb->segs.nsegs ) {
+				/* next row */
+				s = 0;
+				i += iinc;
+			}
+			re_p  = wb->segs.data[s + SEG_RE];
+			im_p  = wb->segs.data[s + SEG_IM];
+		}
 	}
+
 	*pMin = min;
 	*pMax = max;
 }
 
 static void
-wbCpyCplxP(waveformRecord *waveform_ps, WavBuf wb, int n, double *pMin, double *pMax)
+wbCpyCplxP(waveformRecord *waveform_ps, WavBuf wb, int n_tot, double *pMin, double *pMax)
 {
-int i,j,ilim,iinc,jinc;
+int i,j,s,n,jlim,iinc,jinc;
 
-float *re_p = wb->data;
-float *im_p = wb->data1;
-float *dt_p = waveform_ps->bptr;
+float *re_p;
+float *im_p;
+float *dt_p;
 double phas;
 float  re_o, im_o;
 float  re,   im;
 double min = *pMin, max = *pMax;
 
+
 	if ( wb->flags & WavBufFlagCM ) {
 		/* transpose */
 		iinc = 1;
-		jinc = wb->stride > wb->m ? wb->stride : wb->m;
+		jinc = wb->stride > wb->segs.m ? wb->stride : wb->segs.m;
+		jlim = jinc * wb->n;
 	} else {
 		iinc = wb->stride > wb->n ? wb->stride : wb->n;
 		jinc = 1;
+		jlim = wb->segs.n;
 	}
 
-	/* deal with the case where destination < source area */
-	ilim = n/wb->n;
-printf("ilim %i, n %i, wb->n %i\n",ilim,n,wb->n);
+	n    = n_tot;
+	dt_p = waveform_ps->bptr;
+	i = j = s = 0;
 
-	for ( i = 0; i < ilim*iinc; i+=iinc ) {
-		phas = 0.;
-		re_o = 1.;
-		im_o = 0.;
-		for ( j = 0; j< wb->n * jinc; j+=jinc ) {
-if ( 1*iinc == i && j < 4*jinc ) {
-	printf("re %f, im %f, phas %g ",re_p[i+j], im_p[i+j], phas);
-}
-	printf("%i %i %i %i\n",i,j,iinc,jinc);
-			re = re_p[i+j]; im = im_p[i+j];
-			if ( 0. == re && 0. == im )
-				re = 1.;
-			phas   += atan2f(im*re_o - im_o*re, re*re_o + im*im_o);
-if ( 1*iinc == i && j < 4*jinc ) {
-	printf("re %f, im %f, phas %g\n",re_p[i+j], im_p[i+j], phas);
-}
-			re_o    = re;
-			im_o    = im;
-			if ( phas > max )
-				max = phas;
-			else if ( phas < min )
-				min = phas;
-			*dt_p++ = phas;
-		}
-	}
+	re_p  = wb->segs.data[s + SEG_RE];
+	im_p  = wb->segs.data[s + SEG_IM];
 
 	phas = 0.;
 	re_o = 1.;
 	im_o = 0.;
-	for ( j = 0; j< (n-ilim*wb->n)*jinc; j+=jinc ) {
+
+	while ( n > 0 ) {
+
+		if ( 1*iinc == i && j < 4*jinc ) {
+			printf("re %f, im %f, phas %g ",re_p[i+j], im_p[i+j], phas);
+		}
+		printf("%i %i %i %i\n",i,j,iinc,jinc);
+
 		re = re_p[i+j]; im = im_p[i+j];
 		if ( 0. == re && 0. == im )
 			re = 1.;
+
 		phas   += atan2f(im*re_o - im_o*re, re*re_o + im*im_o);
+
+		if ( 1*iinc == i && j < 4*jinc ) {
+			printf("re %f, im %f, phas %g\n",re_p[i+j], im_p[i+j], phas);
+		}
+
 		re_o    = re;
 		im_o    = im;
+
 		if ( phas > max )
 			max = phas;
 		else if ( phas < min )
 			min = phas;
+
 		*dt_p++ = phas;
+		n--;
+		j += jinc;
+
+		if ( j >= jlim ) {
+			j  = 0;
+			s += 2;
+			if ( s  >= wb->segs.nsegs ) {
+				/* next row */
+				s = 0;
+				i += iinc;
+
+				phas = 0.;
+				re_o = 1.;
+				im_o = 0.;
+			}
+			re_p  = wb->segs.data[s + SEG_RE];
+			im_p  = wb->segs.data[s + SEG_IM];
+		}
 	}
+
 	*pMin = min;
 	*pMax = max;
 }
@@ -411,12 +539,28 @@ int32_t          imin, imax;
 		goto bail;
 	}
 
-	n = wb->n * wb->m;;
+	n = wb->n * wb->m;
+
 	if ( n > waveform_ps->nelm )
 		n = waveform_ps->nelm;
 	if ( n != waveform_ps->nord ) {
 		waveform_ps->nord = n;
 		post |= 1;
+	}
+
+	/* Fill in missing segment size as a courtesy */
+	if ( 0 == wb->segs.m ) {
+		if ( 1 == wb->segs.nsegs || (2 == wb->segs.nsegs && WavBufCplx == wb->type) )
+			wb->segs.m = wb->m;
+		else
+			cantProceed("wavBuf: Missing segment dimension 'm'\n");
+	}
+
+	if ( 0 == wb->segs.m ) {
+		if ( 1 == wb->segs.nsegs || (2 == wb->segs.nsegs && WavBufCplx == wb->type) )
+			wb->segs.n = wb->n;
+		else
+			cantProceed("wavBuf: Missing segment dimension 'n'\n");
 	}
 
 	switch ( wb->type ) {

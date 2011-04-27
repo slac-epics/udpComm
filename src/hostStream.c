@@ -275,6 +275,14 @@ int      cm       = cmd->flags & PADCMD_STRM_FLAG_CM;
 int      d32      = cmd->flags & PADCMD_STRM_FLAG_32;
 int      c1       = cmd->flags & PADCMD_STRM_FLAG_C1;
 
+int      sz;
+
+	sz = nsamples * (c1 ? 1 : PADRPLY_STRM_NCHANNELS) * (d32 ? 4 : 2 );
+printf("SZ is %u\n", sz);
+
+	if ( sz > 1440 )
+		return -EINVAL;
+
 #if 0
 	if ( sd >= 0 )
 		udpCommClose(sd);

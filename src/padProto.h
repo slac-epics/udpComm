@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.8 2011/04/25 21:17:34 strauman Exp $ */
+/* $Id: padProto.h,v 1.9 2011/04/27 22:18:32 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -87,7 +87,6 @@ typedef struct PadStrmCommandRec_ {
 	uint8_t		flags;			/* echoed in 'spec[0]' of reply        */
 	uint16_t	port;			/* port where to send data             */
 	uint32_t	nsamples;		/* # samples per channel               */
-	uint8_t     pad[3];
 } __attribute__((may_alias)) PadStrmCommandRec, *PadStrmCommand;
 
 typedef struct PadSimCommandRec_ {

@@ -310,7 +310,7 @@ UdpCommPkt  p;
 			if ( (p = udpCommRecv(sd, timeout_ms)) ) {
 				rep = (PadReply)udpCommBufPtr(p);
 				if ( rep->type == (type | PADCMD_RPLY) && rep->xid == htonl(xid) ) {
-					rval = (int)(int8_t)rep->stat;
+					rval = -(int)(uint8_t)rep->stat;
 					if ( wantReply )
 						*wantReply = p;
 					else

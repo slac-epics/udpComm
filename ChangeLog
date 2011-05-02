@@ -1,4 +1,10 @@
 20110502 (T.S.)
+ - src/drvPadAdcStream.c, src/drvPadAdcStream.h: unbundled driver
+   pieces that suck data from the PAD ADC FIFO into a padStream
+   from BPM and added to 'udpComm'. This is quick-and-dirty
+   (should probably be its own module and more complete, i.e,
+   contain ISR etc. also).
+20110502 (T.S.)
  - src/drvPadUdpComm.c, src/drvPadUdpComm.h, src/hostStream.c,
    src/padStream.c, src/padProto.h, src/padProtoHost.c,
    src/padStreamTestClntMain.c:

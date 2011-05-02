@@ -37,6 +37,7 @@ padProtoHost_LDLIBS+=$(SDDS_$(USE_SDDS)_LIBS)
 
 INC += padProto.h padStream.h udpComm.h
 INC += fidProcess.h drvPadUdpComm.h drvPadUdpCommIO.h wavBuf.h
+INC += drvPadAdcStream.h
 
 
 #Indicate that we want to use 'normal' socket implementation
@@ -52,7 +53,7 @@ padSupport_SRCS += padProto.c
 
 padUdpCommSupport_SRCS += drvPadUdpComm.c fidProcess.c wavBuf.c devWfRawSig.c
 
-padSupport_SRCS_RTEMS-uC5282 = padStream.c bpmsim.c
+padSupport_SRCS_RTEMS-uC5282 = padStream.c bpmsim.c drvPadAdcStream.c
 
 padSupport_SRCS += $(padSupport_SRCS_$(T_A))
 

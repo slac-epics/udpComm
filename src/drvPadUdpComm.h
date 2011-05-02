@@ -225,21 +225,22 @@ int
 drvPadUdpCommStrmSetNSamples(int channel, int nsamples);
 
 /*
- * Set number of ADC channels to enable (1 or PADRPLY_STRM_NCHANNELS) for
- * a particular padChannel (or all channels if 'padChannel' < 0 )
+ * Set bitmask of ADC channels to enable (PADCMD_STRM_CHANNELS_ALL
+ * enables all channels). A particular channel (0..3) is enabled
+ * using (1<<channel_no).
  *
- * RETURNS: -1 on error, previous # of samples on success.
+ * RETURNS: -1 on error, previous channel mask on success.
  *          If 'padChannel'<0 then zero is returned on success.
  *
- * NOTE:    routine can be used to read the current # of ADC channels of
- *          a particular padChannel w/o changing it by passing adcNChannels < 0.
+ * NOTE:    routine can be used to read the current ADC channel mask of
+ *          a particular padChannel w/o changing it by passing adcChannels < 0.
  *
  *          The stream for padChannel (or all padChannels if padChannel=-1 is passed)
  *          MUST NOT be running while the number of ADC channels is modified
  *          (Call fails otherwise).
  */
 int
-drvPadUdpCommStrmSetNChannels(int padChannel, int adcNChannels);
+drvPadUdpCommStrmSetChannels(int padChannel, int adcNChannels);
 
 /* Normal operating mode; simulator off */
 #define SIM_OFF	            0

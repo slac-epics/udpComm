@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.9 2011/04/27 22:18:32 strauman Exp $ */
+/* $Id: padProto.h,v 1.10 2011/04/30 05:42:50 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -45,12 +45,26 @@ typedef struct PadCommandRec_ {
 	uint32_t	ldata[];		/* word sized commands                 */
 } __attribute__((may_alias)) PadCommandRec, *PadCommand;
 
-#define PADCMD_STRM_FLAG_LE	1	/* They want little-endian data    */
-#define PADCMD_STRM_FLAG_CM	2	/* They want column-major  data    */
-#define PADCMD_STRM_FLAG_32 4   /* Data are 32-bit                 */
-#define PADCMD_STRM_FLAG_C1 8   /* Data are one channel only       */
 
-#define PADCMD_SIM_FLAG_NOSEND 1 /* Don't send simulated waveform; just save requested amplitudes */
+/* FLAGS
+ *
+ * NOTE: The 'column-major' flag is overlaid to report the requested
+ *       channel number (lsb) in single-channel mode.
+ */
+#define PADCMD_STRM_FLAG_LE	1	/* They want little-endian data    */
+#define PADCMD_STRM_FLAG_32 2   /* Data are 32-bit                 */
+#define PADCMD_STRM_FLAG_CM	4	/* They want column-major  data    */
+#define PADCMD_STRM_FLAG_CH_MSK 0xc
+/* NOTE: user software should never set the _C1 flag; this is
+ *       managed automatically, based on the number of channels
+ *       given in the stream packet 'channels' member.
+ */
+#define PADCMD_STRM_FLAG_C1 128 /* Data are one channel only       */
+
+/* This macro may only be used if C1 is set! */
+#define PADRPLY_STRM_CHANNEL_GET(rply)      ((((rply)->strm_cmd_flags) >> 2) & 3)
+#define PADRPLY_STRM_CHANNEL_SET(rply, ch)  do { (rply)->strm_cmd_flags &= 0xf3; (rply)->strm_cmd_flags |= ((ch)&3)<<2; } while (0)
+#define PADRPLY_STRM_IS_CM(rply) (! ((rply)->strm_cmd_flags & PADCMD_STRM_FLAG_C1) && ((rply)->strm_cmd_flags & PADCMD_STRM_FLAG_CM))
 
 #define PADRPLY_STRM_FLAG_TYPE_SET(x)	(((x)&7)<<4)
 #define PADRPLY_STRM_FLAG_TYPE_GET(fl)	(((fl)>>4)&7)
@@ -77,17 +91,24 @@ typedef struct PadCommandRec_ {
  * stream.
  */
 #define PADRPLY_STRM_CHANNELS_IN_FRAG(r) \
-	( (   ! ((r)->strm_cmd_flags & PADCMD_STRM_FLAG_CM) &&	PADRPLY_STRM_IS_FRAGMENTED(r) ) \
+	( (   ! PADRPLY_STRM_IS_CM(r) && PADRPLY_STRM_IS_FRAGMENTED(r) ) \
      ?  1 : PADRPLY_STRM_CHANNELS_IN_STRM(r) )
 
 #define PADRPLY_STRM_IS_FRAGMENTED(r) (!! (r)->strm_cmd_idx)
+
+#define PADCMD_STRM_CHANNELS_ALL	0xf
+#define PADCMD_STRM_CHANNELS(x)     ((1<<(x))& 0xf)
 
 typedef struct PadStrmCommandRec_ {
 	int8_t		type;			/* PADCMD_XX                           */
 	uint8_t		flags;			/* echoed in 'spec[0]' of reply        */
 	uint16_t	port;			/* port where to send data             */
 	uint32_t	nsamples;		/* # samples per channel               */
+	uint8_t     channels;       /* mask of channels                    */
+	uint8_t     pad[3];
 } __attribute__((may_alias)) PadStrmCommandRec, *PadStrmCommand;
+
+#define PADCMD_SIM_FLAG_NOSEND 1 /* Don't send simulated waveform; just save requested amplitudes */
 
 typedef struct PadSimCommandRec_ {
 	int8_t		type;

@@ -164,6 +164,7 @@ int i;
 			padStrmCmd.cmd[i].flags |= PADCMD_STRM_FLAG_32;
 		padStrmCmd.cmd[i].port      = htons(drvPadUdpCommPort + 1);
 		padStrmCmd.cmd[i].nsamples  = htonl(drvPadUdpCommPrefs.nsamples);
+		padStrmCmd.cmd[i].channels  = PADCMD_STRM_CHANNELS_ALL;
 		padNSamples[i]              = drvPadUdpCommPrefs.nsamples;
 	}
 	padStrmCmdLock = epicsMutexMustCreate();
@@ -244,7 +245,7 @@ epicsTimeStamp    ts;
 					drvPadUdpCommTimeout);
 
 	if ( rval ) {
-		epicsPrintf("drvPadUdpCommStrmStartReq: Unable to start stream: %s\n", strerror(rval));
+		epicsPrintf("drvPadUdpCommStrmStartReq: Unable to start stream: %s\n", strerror(-rval));
 		return rval;
 	}
 
@@ -256,29 +257,29 @@ epicsTimeStamp    ts;
 }
 
 int
-drvPadUdpCommStrmSetNChannels(int padChannel, int adcNChannels)
+drvPadUdpCommStrmSetChannels(int padChannel, int adcChannels)
 {
 int rval;
 
-	if ( (padChannel < 0 && adcNChannels <= 0) || padChannel >= MAX_BPM ) {
+	if ( (padChannel < 0 && adcChannels < 0) || padChannel >= MAX_BPM ) {
 		/* invalid argument */
 		return -1;
 	}
 
-	if ( adcNChannels <= 0 ) {
+	if ( adcChannels < 0 ) {
 		epicsMutexLock(padStrmCmdLock);
-			rval = ((padStrmCmd.cmd[padChannel].flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS);
+			rval = padStrmCmd.cmd[padChannel].channels;
 		epicsMutexUnlock(padStrmCmdLock);
 		return rval;
 	}
 
 	if ( ! drvPadUdpCommPrefs.nchannels_dynamic ) {
-		epicsPrintf("drvPadUdpCommStrmSetNChannels: client-driver forbids changing sample number\n");
+		epicsPrintf("drvPadUdpCommStrmSetChannels: client-driver forbids changing sample number\n");
 		return -1;
 	}
 
-	if ( adcNChannels != 1 && adcNChannels != PADRPLY_STRM_NCHANNELS ) {
-		epicsPrintf("drvPadUdpCommStrmSetNChannels: unsupported # of channels: %u\n", adcNChannels);
+	if ( adcChannels > PADCMD_STRM_CHANNELS_ALL || adcChannels <= 0 ) {
+		epicsPrintf("drvPadUdpCommStrmSetChannels: unsupported channel mask: 0x%x\n", adcChannels);
 		return -1;
 	}
 
@@ -286,27 +287,21 @@ int rval;
 	if ( padChannel < 0 ) {
 		if ( (drvPadUdpCommChannelsInUseMask & ((1<<MAX_BPM)-1)) ) {
 			epicsMutexUnlock(padStrmCmdLock);
-			epicsPrintf("drvPadUdpCommSetNChannels: cannot change #-of ADC channels while any padChannel is started/streaming\n");
+			epicsPrintf("drvPadUdpCommSetChannels: cannot change ADC channels while any padChannel is started/streaming\n");
 			return -1;
 		}
 		for ( padChannel = 0; padChannel < MAX_BPM; padChannel++ ) {
-			if ( PADRPLY_STRM_NCHANNELS == adcNChannels )
-				padStrmCmd.cmd[padChannel].flags &= ~ PADCMD_STRM_FLAG_C1;
-			else
-				padStrmCmd.cmd[padChannel].flags |=   PADCMD_STRM_FLAG_C1;
+			padStrmCmd.cmd[padChannel].channels = adcChannels;
 		}
 		rval = 0;
 	} else {
 		if ( (drvPadUdpCommChannelsInUseMask & (1<<padChannel)) ) {
 			epicsMutexUnlock(padStrmCmdLock);
-			epicsPrintf("drvPadUdpCommSetNChannels: cannot change #-of ADC channels while padChannel is started/streaming\n");
+			epicsPrintf("drvPadUdpCommSetChannels: cannot change ADC channels while padChannel is started/streaming\n");
 			return -1;
 		}
-		rval = ((padStrmCmd.cmd[padChannel].flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS);
-		if ( PADRPLY_STRM_NCHANNELS == adcNChannels )
-			padStrmCmd.cmd[padChannel].flags &= ~ PADCMD_STRM_FLAG_C1;
-		else
-			padStrmCmd.cmd[padChannel].flags |=   PADCMD_STRM_FLAG_C1;
+		rval = padStrmCmd.cmd[padChannel].channels;
+		padStrmCmd.cmd[padChannel].channels = adcChannels;
 	}
 	epicsMutexUnlock(padStrmCmdLock);
 
@@ -557,7 +552,7 @@ int      rval = -1;
 			goto bail;
 		}
 		pb->free = padDataFree; 
-		if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
+		if ( PADRPLY_STRM_IS_CM(rply) ) {
 			pb->flags = WavBufFlagCM;
 		} else {
 			pb->flags = 0;
@@ -702,7 +697,7 @@ int         bad_version_count = 0;
 		drvPadUdpCommPktTimeBaseline[chan] = ntohl(rply->xid);
 
 		/* Layout (column-major or row-major) */
-		layout_cm = (rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM );
+		layout_cm = PADRPLY_STRM_IS_CM(rply);
 
 		if ( isbe() != !(rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE) ) {
 			errlogPrintf("drvPadUdpCommListener: bad data endianness\n");

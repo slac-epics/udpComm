@@ -43,14 +43,14 @@ static void nm##Func(const iocshArgBuf *args) \
 DECL1(drvPadUdpCommStrmStartReq,     chArgp)
 DECL1(drvPadUdpCommStrmStopReq,      chArgp)
 DECL2(drvPadUdpCommStrmSetNSamples,  chArgp)
-DECL2(drvPadUdpCommStrmSetNChannels, chArgp)
+DECL2(drvPadUdpCommStrmSetChannels, chArgp)
 
 int main(int argc, char *argv[])
 {
 	REG(drvPadUdpCommStrmStartReq);
 	REG(drvPadUdpCommStrmStopReq);
 	REG(drvPadUdpCommStrmSetNSamples);
-	REG(drvPadUdpCommStrmSetNChannels);
+	REG(drvPadUdpCommStrmSetChannels);
 	if ( argc >= 2 ) {
 		iocsh( argv[1] );
 		epicsThreadSleep( 0.2 );

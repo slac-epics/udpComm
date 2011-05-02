@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.8 2011/04/25 21:17:10 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.9 2011/04/27 22:18:32 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -124,10 +124,14 @@ PadCommand        cmd = cmdp;
 static void
 dump_hdr(PadReply rply)
 {
-	printf("// IDX: %i (MF: %i), TYPE %i\n",
+	printf("// IDX: %i (MF: %i), TYPE %i",
 			PADRPLY_STRM_CMD_IDX_GET(rply->strm_cmd_idx),
 			(rply->strm_cmd_idx & PADRPLY_STRM_CMD_IDX_MF) ? 1 : 0,
 			PADRPLY_STRM_FLAG_TYPE_GET(rply->strm_cmd_flags));
+	if ( 1 == PADRPLY_STRM_CHANNELS_IN_STRM( rply ) ) {
+		printf(", CHNL: %i", PADRPLY_STRM_CHANNEL_GET( rply ));
+	}
+	printf("\n");
 }
 
 static int
@@ -235,7 +239,7 @@ void              *mem = 0;
 		/* always write out in fortran (scilab) format with
 		 * the samples going down the columns
 		 */
-		if ( rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM ) {
+		if ( PADRPLY_STRM_IS_CM(rply) ) {
 			for (i=0; i<sz*nchannels; i+=nchannels) {
 				if ( d32 ) {
 					for ( j=0; j<nchannels; j++ )
@@ -293,7 +297,7 @@ char               *col     = 0;
 int               nsamples  = 8;
 int               badEndian = 0;
 int               d32       = 0;
-int               c1        = 0;
+int               chnls     = 0;
 int               colMajor  = 0;
 int               srvrMode  = 0;
 unsigned          dbg       = 0;
@@ -307,7 +311,7 @@ uint32_t          mcaddr    = 0;
 const char *      mcgrp     = 0;
 int               err;
 
-	while ( (ch = getopt(argc, argv, "1bvcehLl:n:C:s:d:S:t:P:p:m:")) > 0 ) {
+	while ( (ch = getopt(argc, argv, "1:bvcehLl:n:C:s:d:S:t:P:p:m:")) > 0 ) {
 		switch (ch) {
 			default:
 				fprintf(stderr,"Unknown option '%c'\n",ch);
@@ -374,7 +378,15 @@ int               err;
 			case 'b': theChannel = PADREQ_BCST; break;
 
 			case 'v': verbose   = 1; break;
-			case '1': c1        = 1; type = PADCMD_STRM; break;
+			case '1':
+				if ( 1 != sscanf(optarg,"%i",&chnls) || chnls < 0 || chnls > 3 ) {
+					fprintf(stderr,"Option -1 needs numerical arg 0..3\n");
+					exit(1);
+				}
+				chnls = 1<<chnls;
+				type = PADCMD_STRM;
+			break;
+
 			case 'c': colMajor  = 1; type = PADCMD_STRM; break;
 			case 'e': badEndian = 1; type = PADCMD_STRM; break;
 			case 'L': d32       = 1; type = PADCMD_STRM; break;
@@ -476,10 +488,9 @@ int               err;
 				the_cmd.stmc.flags = (!isbe() ^ (badEndian == 1)) ? PADCMD_STRM_FLAG_LE : 0;
 				if ( d32 )
 					the_cmd.stmc.flags |= PADCMD_STRM_FLAG_32;
-				if ( c1 )
-					the_cmd.stmc.flags |= PADCMD_STRM_FLAG_C1;
 				the_cmd.stmc.port     = htons(port+1); /* should be PADPROTO_STRM_PORT */
 				the_cmd.stmc.nsamples = htonl(nsamples);
+				the_cmd.stmc.channels = chnls;
 
 				if ( colMajor )
 					the_cmd.stmc.flags |= PADCMD_STRM_FLAG_CM;

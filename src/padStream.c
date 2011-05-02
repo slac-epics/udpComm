@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.15 2011/04/25 21:16:47 strauman Exp $ */
+/* $Id: padStream.c,v 1.16 2011/04/27 22:18:33 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -66,7 +66,7 @@ static rtems_id mutex = 0;
 	assert( RTEMS_SUCCESSFUL == rtems_semaphore_release(mutex) )
 
 static LanIpPacketRec replyPacket __attribute__((aligned(4))) = {{{{{0}}}}};
-static int            nsamples, sampsizld, npkts; /* keep values around (lazyness) */
+static int            nsamples, nsamples_frag, sampsizld, npkts, channels; /* keep values around (lazyness) */
 #define LONGDATA (sampsizld == 2)
 
 static IpBscIf intrf;
@@ -137,14 +137,40 @@ int
 padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip)
 {
 PadReply        rply = &lpkt_udp_pld(&replyPacket, PadReplyRec);
-int             len;
+int             len,chno,msk;
 int             rval;
 LanIpPacket     pkt;
-int             nchannels;
+int             nchannels, nchannels_in_strm;
 int             nbytes;
 
 	if ( !intrf )
 		return -ENODEV; /* stream has not been initialized yet */
+
+	/* Check elementary parameters */
+	channels = (scmd->channels & PADCMD_STRM_CHANNELS_ALL);
+	/* courtesy; if existing SW fails to set channels we assume they want ALL */
+	if ( 0 == channels || PADCMD_STRM_CHANNELS_ALL == channels ) {
+		if ( (scmd->flags & PADCMD_STRM_FLAG_C1) ) {
+			return -EINVAL;
+		}
+		channels  = PADCMD_STRM_CHANNELS_ALL;
+		nchannels = PADRPLY_STRM_NCHANNELS;
+		chno      = -1; /* keep compiler happy */
+	} else {
+		/* How many & which channel did they select */
+		for ( chno=0, msk = channels;  ! (msk & 1); chno++, msk>>=1 )
+			/* nothing else to do */;
+		msk >>= 1;
+		if ( msk ) {
+			/* only 1 or ALL channels supported ATM */
+			return -EOPNOTSUPP;
+		}
+		/* Single-channel must be row-major */
+		if ( (scmd->flags & PADCMD_STRM_FLAG_CM) )
+			return -EOPNOTSUPP;
+		nchannels = 1;
+	}
+	nchannels_in_strm = nchannels;
 
 	/* Recent lanIpBasic asynchronously updates the ARP cache. If want
 	 * to make sure that we have a valid cache entry then we better
@@ -164,20 +190,20 @@ int             nbytes;
 
 		/* cannot change layout and # of samples etc. while up */
 		if ( isup ) {
-			if  (  (    (scmd->flags & ~PADRPLY_STRM_FLAG_TYPE_SET(-1)) 
-			         != (rply->strm_cmd_flags &= ~PADRPLY_STRM_FLAG_TYPE_SET(-1)) )
-			     || 
-			       ( nsamples != ntohl(scmd->nsamples) )
+			if  (  (    (scmd->flags & (PADCMD_STRM_FLAG_LE | PADCMD_STRM_FLAG_32))
+			         != (rply->strm_cmd_flags & (PADCMD_STRM_FLAG_LE | PADCMD_STRM_FLAG_32)) )
+                 || (!! PADRPLY_STRM_IS_CM(rply) != !! (scmd->flags & PADCMD_STRM_FLAG_CM) )
+			     || ( nsamples != ntohl(scmd->nsamples) )
+			     || ( channels != scmd->channels && (scmd->channels || PADCMD_STRM_CHANNELS_ALL != channels) )
                 ) {
 			UNLOCK();
 			return -EINVAL;
 			}
 		}
 
-		nsamples  = ntohl(scmd->nsamples);
+		nsamples_frag = nsamples  = ntohl(scmd->nsamples);
 		npkts     = 1;
 		sampsizld = (scmd->flags & PADCMD_STRM_FLAG_32) ? 2 : 1;
-		nchannels = (scmd->flags & PADCMD_STRM_FLAG_C1) ? 1 : PADRPLY_STRM_NCHANNELS;
 
 		nbytes    = (nsamples<<sampsizld) * nchannels;
 
@@ -193,7 +219,7 @@ int             nbytes;
 				return -EINVAL;
 			}
 
-			/* Furthemore, in row-major layout row-boundaries must be packet boundaries */
+			/* Furthermore, in row-major layout row-boundaries must be packet boundaries */
 			if ( ! (scmd->flags & PADCMD_STRM_FLAG_CM) ) {
 				if ( ( (nsamples << sampsizld) & ((1<<LD_FRAG_SIZE)-1) ) ) {
 					UNLOCK();
@@ -206,7 +232,7 @@ int             nbytes;
 			}
 
 			npkts    = nbytes >> LD_FRAG_SIZE;
-			nsamples  = (1<<(LD_FRAG_SIZE - sampsizld)) / nchannels; 
+			nsamples_frag  = (1<<(LD_FRAG_SIZE - sampsizld)) / nchannels; 
 		}
 
 		if ( ! peer.ip ) {
@@ -227,7 +253,7 @@ int             nbytes;
 			/* Add missing bits: destination IP , source port */
 			lpkt_ip(&replyPacket).dst     = hostip;
 
-			len = ((nsamples*nchannels) << sampsizld) + sizeof(*rply);
+			len = ((nsamples_frag*nchannels) << sampsizld) + sizeof(*rply);
 			/* Fill in length and IP header checksum etc */
 			udpSockHdrsSetlen(&lpkt_udp_hdrs(&replyPacket), len);
 			/* Setup Reply */
@@ -237,6 +263,10 @@ int             nbytes;
 			rply->nBytes          = htons(len);
 			rply->stat            = 0;
 			rply->strm_cmd_flags  = scmd->flags;
+			if ( 1 == nchannels_in_strm ) {
+				rply->strm_cmd_flags |= PADCMD_STRM_FLAG_C1;
+				PADRPLY_STRM_CHANNEL_SET(rply, chno);
+			}
 			rply->strm_cmd_idx    = 0;
 
 			isup                  = 1;
@@ -580,7 +610,7 @@ struct timeval now_tv;
 		drvLan9118FifoWr(plan, &replyPacket, UDPPKTSZ(sizeof(PadReplyRec)));
 
 		if ( ! (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ) {
-			if ( rply->strm_cmd_idx && ! (rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM) ) {
+			if ( rply->strm_cmd_idx && ! PADRPLY_STRM_IS_CM(rply) ) {
 				/* multi-fragment, row-major packet - request only a single channel! */
 printf("glox: idx %i, nchannels %i, npkts %i\n", idx, nchannels, npkts);
 				ch = idx * PADRPLY_STRM_NCHANNELS / npkts;
@@ -589,19 +619,19 @@ printf("glox: idx %i, nchannels %i, npkts %i\n", idx, nchannels, npkts);
 				ch = PADRPLY_STRM_NCHANNELS;
 			}
 		} else {
-			ch = 0;
+			ch = PADRPLY_STRM_CHANNEL_GET( rply );
 		}
 
 		if ( (data_p=getdata(
 						&rply->data,
 						idx,
 						ch,
-						nsamples, 
+						nsamples_frag, 
 						rply->strm_cmd_flags & PADCMD_STRM_FLAG_32,
 						rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
-						rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM,
+						PADRPLY_STRM_IS_CM(rply),
 						uarg)) ) {
-			drvLan9118FifoWr(plan, data_p, ((nsamples*nchannels) << sampsizld));
+			drvLan9118FifoWr(plan, data_p, ((nsamples_frag*nchannels) << sampsizld));
 		}
 		/* else ['getdata' returned NULL] the getdata method already
 		 * wrote to the TX FIFO

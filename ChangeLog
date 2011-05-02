@@ -1,3 +1,15 @@
+20110502 (T.S.)
+ - src/drvPadUdpComm.c, src/drvPadUdpComm.h, src/hostStream.c,
+   src/padStream.c, src/padProto.h, src/padProtoHost.c,
+   src/padStreamTestClntMain.c:
+   Added now 'channels' byte to stream command request.
+   Use remaining flags and CM to convey channel number in single-channel
+   mode reply. CM is no longer directly tested by user but he/she must now 
+   use PADRPLY_STRM_IS_CM() macro. C1 is no longer directly set by user
+   but managed internally, based on the channel bit mask in the 
+   stream-start command.
+ - src/padProto.c: fixed propagation of PAD errno to padRequest return
+   value (error # < 0).
 20110427 (T.S.)
  - first stab at supporting fragmented streams. This is still untested
    and is 'hackish' since it was done very quickly and could not be

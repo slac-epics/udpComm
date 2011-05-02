@@ -233,8 +233,10 @@ int len       = nsamples*(d32 ? sizeof(int32_t) : sizeof(int16_t))*nchannels + s
 		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_CM;
 	if ( d32 )
 		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_32;
-	if ( c1  )
+	if ( c1 ) {
 		rply->strm_cmd_flags |= PADCMD_STRM_FLAG_C1;
+		PADRPLY_STRM_CHANNEL_SET( rply, (c1-1) );
+	}
 
 	rply->strm_cmd_idx    = 0;
 
@@ -274,6 +276,7 @@ int      le       = cmd->flags & PADCMD_STRM_FLAG_LE;
 int      cm       = cmd->flags & PADCMD_STRM_FLAG_CM;
 int      d32      = cmd->flags & PADCMD_STRM_FLAG_32;
 int      c1       = cmd->flags & PADCMD_STRM_FLAG_C1;
+int      msk,chno;
 
 int      sz;
 
@@ -282,6 +285,24 @@ printf("SZ is %u\n", sz);
 
 	if ( sz > 1440 )
 		return -EINVAL;
+
+	msk = (cmd->channels & PADCMD_STRM_CHANNELS_ALL);
+	if ( 0 == msk || PADCMD_STRM_CHANNELS_ALL == msk ) {
+		if ( c1 )
+			return -EINVAL;
+	} else {
+		for ( chno = 0; ! (msk & 1); chno++, msk >>= 1)
+			/* nothing else to do */;
+		msk >>= 1;
+		if ( msk ) {
+			/* only a single channel supported ATM */
+			return -EOPNOTSUPP;
+		}
+		/* single channel must be row-major */
+		if ( cm )
+			return -EOPNOTSUPP;
+		c1 = chno + 1;
+	}
 
 #if 0
 	if ( sd >= 0 )
@@ -385,7 +406,7 @@ struct timeval      now;
 		nchannels,
 		d32,
 		rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,
-		rply->strm_cmd_flags & PADCMD_STRM_FLAG_CM,
+		PADRPLY_STRM_IS_CM(rply),
 		&v);
 #ifdef USE_SDDS
 	}

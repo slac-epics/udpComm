@@ -14,7 +14,7 @@ LIBRARY_IOC_RTEMS   = udpCommBSD padSupport padUdpCommSupport udpComm
 
 PROD_HOST           = padProtoHost
 PROD_IOC_RTEMS      = padStreamTestSrv
-PROD                = padStreamTestClnt
+#PROD                = padStreamTestClnt
 
 # SDDS_LIB is defined in the RELEASE file and points
 # to the local SDDS installation
@@ -51,7 +51,7 @@ DBD += padStreamTestClnt.dbd
 # The following are compiled and added to the Support libraries
 padSupport_SRCS += padProto.c
 
-padUdpCommSupport_SRCS += drvPadUdpComm.c fidProcess.c wavBuf.c devWfRawSig.c
+padUdpCommSupport_SRCS += drvPadUdpComm.c fidProcess.c wavBuf.c devWfRawSig.c 
 
 padSupport_SRCS_RTEMS-uC5282 = padStream.c bpmsim.c drvPadAdcStream.c
 

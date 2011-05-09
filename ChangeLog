@@ -1,3 +1,5 @@
+20110509 (T.S.)
+ - RELEASE_NOTES: updated; cut R2-1-0
 20110502 (T.S.)
  - src/drvPadAdcStream.c, src/drvPadAdcStream.h: unbundled driver
    pieces that suck data from the PAD ADC FIFO into a padStream

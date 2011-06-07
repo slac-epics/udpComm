@@ -20,8 +20,8 @@ EPICS_MODULES=$(MODULES_SITE_TOP)
 # Define the version of modules needed by
 # IOC apps or other Support apps
 # =============================================================
-EVENT_MODULE_VERSION=event-R3-2-1
-MISCUTILS_MODULE_VERSION=miscUtils-R2-2-0
+EVENT_MODULE_VERSION=event-R3-2-2-br_generaltime
+MISCUTILS_MODULE_VERSION=miscUtils-R2-2-2
 
 # ============================================================
 # Dependent Modules: Need event module to pass timestamp from 

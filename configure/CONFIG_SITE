@@ -12,6 +12,7 @@
 # for a subset of the cross-compiled target architectures
 # that Base is built for.
 #CROSS_COMPILER_TARGET_ARCHS = RTEMS-uC5282 RTEMS-beatnik
+CROSS_COMPILER_TARGET_ARCHS = RTEMS-uC5282 RTEMS-beatnik
 
 # Set this when your IOC and the host use different paths
 # to access the application. This will be needed to boot

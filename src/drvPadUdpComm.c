@@ -54,7 +54,7 @@
 #ifdef TEST_ONLY
 #define TS1_OR_4_TIME   epicsTimeEventCurrentTime
 #else
-#error "EPICS > 3.14.9 -- There must have something changed in the EVR code -- I don't know the appropriate event code"
+#define TS1_OR_4_TIME   (epicsTimeEventBestTime)
 #endif
 
 #else
@@ -919,11 +919,24 @@ int i;
 static long
 padUdpCommInit(void)
 {
-int err,i;
-int isVme;
+int            err,i;
+int            isVme;
+epicsTimeStamp ts;
 
 	if ( !drvPadUdpCommPeer ) {
 		epicsPrintf("drvPadUdpComm -- peer not set; call drvPadUdpCommSetup(peer) first\n");
+		return -1;
+	}
+
+	/* Check if epicsTimeGetEvent() works; on post 3.14.9 (bundled generalTime) we must
+	 * use event (-1) (epicsTimeEventBestTime) but this requires evrTimeGet to be modified.
+	 * The following call will fail on post-3.14.9 with an unmodified evrTimeGet().
+	 */
+
+	if ( epicsTimeGetEvent(&ts, TS1_OR_4_TIME) ) {
+		epicsPrintf("drvPadUdpComm -- epicsTimeEventGetEvent() failed; this is probably\n"
+		            "                 because evrTime.c has not been patched for bundled generalTime\n"
+		            "                 contact Steph Allison, Kukhee Kim or Till Straumann\n");
 		return -1;
 	}
 

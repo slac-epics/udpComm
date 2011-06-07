@@ -1,4 +1,10 @@
 20110606 (T.S.)
+ - drvPadUdpComm.c: defined TS1_OR_4_TIME for post- base-3.14.9 (bundled
+   generalTime) where we use epicsTimeEventBestTime (== -1). However, 
+   this requires evrTimeGet():event/evrTime.c to be modified. Added a
+   run-time check for this modification and fail driver initialization
+   if the check doesn't pass.
+20110606 (T.S.)
  - fidProcess.c, wavBuf.c, devWfRawSig.c: include <errlog.h> to silence
    compiler warnings under base-3.14.12
 

@@ -1,4 +1,4 @@
-/* $Id: devWfRawSig.c,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
+/* $Id: devWfRawSig.c,v 1.2 2011/04/27 22:18:24 strauman Exp $ */
 
 /*=============================================================================
  
@@ -42,6 +42,7 @@
 #include <dbAccess.h>
 #include <recGbl.h>
 #include <cantProceed.h>
+#include <errlog.h>
 
 #include "wavBuf.h"
 #ifndef WITHOUT_UDPCOMM_IOINT

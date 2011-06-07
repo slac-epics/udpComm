@@ -1,4 +1,4 @@
-/* $Id: wavBuf.c,v 1.2 2011/04/21 19:42:38 strauman Exp $ */
+/* $Id: wavBuf.c,v 1.3 2011/04/27 22:18:36 strauman Exp $ */
 
 #include <epicsInterrupt.h>
 #include "wavBuf.h"
@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <dbScan.h>
+#include <errlog.h>
 
 #define NUM_BUFHDS (WAV_BUF_NUM_SLOTS*WAV_BUF_NUM_KINDS*3)
 

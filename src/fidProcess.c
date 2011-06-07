@@ -1,5 +1,6 @@
 
 #include <epicsTime.h>
+#include <errlog.h>
 
 #ifndef TEST_ONLY
 #include <evrTime.h>

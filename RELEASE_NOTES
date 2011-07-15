@@ -1,3 +1,8 @@
+udpComm-R1-3-1-1: This is RELEASE is part of a branched released.  Derived from
+                  the "udpComm-R1-3-1-BR" branch.  IOC applications that want to
+                  remain here and not go to the R2-X-X release. Here we build
+                  against event-R3-2-1-br_backprop-1-0
+
 udpComm-R1-3-1:  (2010/06/01, T.S.)
 		 Just another module-jungle release.
 		 Built against event-R3-2-1 instead of event-R3-2-0.

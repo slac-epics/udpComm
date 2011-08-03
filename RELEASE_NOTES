@@ -1,4 +1,7 @@
+udpComm-R2-1-2:  (2011/Aug/03, Ernest)
+                 - Build against event module version: event-R3-2-2-br_generaltime-1-1
 udpComm-R2-1-1:  (2011/Jun/06, Till)
+
                - drvPadUdpComm.c: defined TS1_OR_4_TIME for post- base-3.14.9 (bundled
                  generalTime) where we use epicsTimeEventBestTime (== -1). However,
                  this requires evrTimeGet():event/evrTime.c to be modified. Added a

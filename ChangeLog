@@ -1,4 +1,8 @@
 20110606 (T.S.)
+ - drvPadUdpComm.c: fixed run-time check - need to make sure EVR is fully
+   initialized. Unfortunately, that adds knowledge about EVR to
+   drvPadUdpComm.c :-(
+20110606 (T.S.)
  - drvPadUdpComm.c: defined TS1_OR_4_TIME for post- base-3.14.9 (bundled
    generalTime) where we use epicsTimeEventBestTime (== -1). However, 
    this requires evrTimeGet():event/evrTime.c to be modified. Added a

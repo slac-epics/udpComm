@@ -55,6 +55,8 @@
 #define TS1_OR_4_TIME   epicsTimeEventCurrentTime
 #else
 #define TS1_OR_4_TIME   (epicsTimeEventBestTime)
+#define ENSURE_EVR_INITED
+#include <evrTime.h>
 #endif
 
 #else
@@ -932,6 +934,13 @@ epicsTimeStamp ts;
 	 * use event (-1) (epicsTimeEventBestTime) but this requires evrTimeGet to be modified.
 	 * The following call will fail on post-3.14.9 with an unmodified evrTimeGet().
 	 */
+
+#ifdef ENSURE_EVR_INITED
+	/* make sure EVR is initialized by explicitly calling init routine here */
+	evrInitialize();
+	/* wait for some time to make sure first events have been received      */
+	epicsThreadSleep(1.0);
+#endif
 
 	if ( epicsTimeGetEvent(&ts, TS1_OR_4_TIME) ) {
 		epicsPrintf("drvPadUdpComm -- epicsTimeEventGetEvent() failed; this is probably\n"

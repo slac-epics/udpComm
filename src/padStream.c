@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.16 2011/04/27 22:18:33 strauman Exp $ */
+/* $Id: padStream.c,v 1.17 2011/05/02 17:41:28 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -602,6 +602,10 @@ struct timeval now_tv;
 		rply->strm_cmd_idx    = idx;
 		if ( idx + 1 < npkts )
 			rply->strm_cmd_idx |= PADRPLY_STRM_CMD_IDX_MF;
+
+		/* FIXME: Hmm - if we have multiple fragments to send, should
+		 * we busy-wait for space?
+		 */
 		if ( drvLan9118TxPacket(plan, 0, len, 0) ) {
 			UNLOCK();
 			return -ENOSPC;

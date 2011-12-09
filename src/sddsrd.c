@@ -155,7 +155,7 @@ SDDS_DATASET sdds;
 SddsFileDat  rval  = 0;
 SddsPage    *tailp,tail;
 SddsFileDat  wrk   = 0;
-int          pp,m,n,i,ii,j,jj,sz,st;
+int          pp,m,i,ii,j,jj,sz,st;
 SddsDataP    cols [NCOLS] = {{r:  0}, {r:  0}, {r:  0}, {r:  0}};
 const char  *colns[NCOLS] = {coln1, coln2, coln3, coln4};
 long long    mean[NCOLS]  = {  0LL,   0LL,   0LL,   0LL};
@@ -199,7 +199,6 @@ int32_t      means[NCOLS];
 			goto bail;
 		}
 		m = SDDS_RowCount( &sdds );
-		n = SDDS_ColumnCount( &sdds );
 
 		if ( nSamples < 0 )
 			nSamples = m;

@@ -1,7 +1,7 @@
 record(waveform, "strmwf") {
 	field(DESC,  "PAD stream test")
 	field(FTVL,  "SHORT")
-	field(NELM,  "1500")
+	field(NELM,  "4096")
 	field(DTYP,  "WavBuf")
 #	field(INP,   "#C2S0@wbscan")
 	field(INP,   "#C2S0")

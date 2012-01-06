@@ -1,4 +1,9 @@
-edpComm-R2-1-5: - Build against event module version: event-R3-2-2-br_generaltime-1-3
+udpComm-R2-1-6: - Build against event module version: event-R3-2-1-br_backprop-2-1
+                  base-R3-14-8-2-lcls6_p1
+                  miscUtils-R2-2-1
+                  generalTime-R2-2-1
+
+udpComm-R2-1-5: - Build against event module version: event-R3-2-2-br_generaltime-1-3
                   The event module fixes a bug with BSA
 
 udpComm-R2-1-4:  (2011/Sept/27, Ernest)

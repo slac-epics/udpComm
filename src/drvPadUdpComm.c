@@ -177,13 +177,11 @@ drvPadUdpCommStrmStopReq(int channel)
 {
 int            key, rval;
 epicsTimeStamp ts;
-uint32_t       old_val;
 
 	if ( channel < 0 || channel >= MAX_BPM )
 		return -1;
 
 	key = epicsInterruptLock();
-		old_val = (drvPadUdpCommChannelsInUseMask & (1<<channel));
 		drvPadUdpCommChannelsInUseMask &= ~(1<<channel);
 	epicsInterruptUnlock(key);
 
@@ -199,7 +197,7 @@ uint32_t       old_val;
 	rval = io.padIoReq(
 				drvPadUdpCommSd,
 				channel,
-				PADCMD_STOP,
+				PADCMD_STOP | PADCMD_QUIET,
 				drvPadUdpCommGetXid(),
 				htonl(ts.secPastEpoch), htonl(ts.nsec),
 				0,
@@ -207,9 +205,6 @@ uint32_t       old_val;
 				drvPadUdpCommTimeout);
 
 	if ( rval ) {
-		key = epicsInterruptLock();
-			drvPadUdpCommChannelsInUseMask |= old_val;
-		epicsInterruptUnlock(key);
 		epicsPrintf("drvPadUdpCommStrmStopReq: Unable to stop stream: %s\n", strerror(-rval));
 	}
 
@@ -239,21 +234,21 @@ epicsTimeStamp    ts;
 		rval = io.padIoReq(
 					drvPadUdpCommSd,
 					channel,
-					PADCMD_STRM,
+					PADCMD_STRM | PADCMD_QUIET,
 					drvPadUdpCommGetXid(),
 					htonl(ts.secPastEpoch), htonl(ts.nsec),
 					&scmd,
 					0,
 					drvPadUdpCommTimeout);
 
-	if ( rval ) {
-		epicsPrintf("drvPadUdpCommStrmStartReq: Unable to start stream: %s\n", strerror(-rval));
-		return rval;
-	}
 
 	key = epicsInterruptLock();
 		drvPadUdpCommChannelsInUseMask |= (1<<channel);
 	epicsInterruptUnlock(key);
+
+	if ( rval ) {
+		epicsPrintf("drvPadUdpCommStrmStartReq: Unable to start stream: %s\n", strerror(-rval));
+	}
 
 	return rval;
 }
@@ -716,7 +711,7 @@ int         bad_version_count = 0;
 		 * so we just do it prior to handling the one-and-only PAD
 		 */
 		if ( PadDataBpm == kind ) {
-			fidTestProcess();
+			fidtestprocess();
 		}
 #endif
 

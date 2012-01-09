@@ -1,4 +1,11 @@
 20120109 (T.S.)
+ - src/padProto.c: Fix padRequest() - resend request when retrying.
+ - src/drvPadUdpComm.c: restore old behavior: starting/stopping stream
+   sends drvPadUdpCommChannelsInUseMask regardless of success/failure
+   status of PAD command. Make drvPadUdpCommStrmStopReq() non-blocking
+   (use PADCMD_QUIET; restored old behavior). 
+   New: use PADCMD_QUIET (non-blocking) for drvPadUdpCommStrmStartReq(), too. 
+20120109 (T.S.)
  - src/drvPadAdcStream.c start_stop_cb must check if the 'req' parameter
    is non-NULL (which is only the case during the 'start' operation).
 20110606 (T.S.)

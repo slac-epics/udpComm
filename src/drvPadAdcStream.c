@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: drvPadAdcStream.c,v 1.1 2011/05/02 17:47:46 strauman Exp $ */
 
 #include <rtems.h>
 #include <assert.h>
@@ -275,13 +275,17 @@ drvPadAdcStreamReport(int level)
 int
 drvPadAdcStream_start_stop_cb(PadRequest req, PadStrmCommand start, void *uarg)
 {
-	if ( PADPROTO_VERSION3 != req->version ) {
-		/* unrecognized version */
-		return -ENOTSUP;
+
+	/* req is only non-NULL when the stream is started */
+	if ( req ) {
+		if ( PADPROTO_VERSION3 != req->version ) {
+			/* unrecognized version */
+			return -ENOTSUP;
+		}
 	} 
 
 	if ( start ) {
-		if (start->flags & PADCMD_STRM_FLAG_32) {
+		if ( (start->flags & PADCMD_STRM_FLAG_32) ) {
 			/* unsupported */
 			return -ENOTSUP;
 		}

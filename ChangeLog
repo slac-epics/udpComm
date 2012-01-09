@@ -1,3 +1,6 @@
+20120109 (T.S.)
+ - src/drvPadAdcStream.c start_stop_cb must check if the 'req' parameter
+   is non-NULL (which is only the case during the 'start' operation).
 20110606 (T.S.)
  - drvPadUdpComm.c: fixed run-time check - need to make sure EVR is fully
    initialized. Unfortunately, that adds knowledge about EVR to

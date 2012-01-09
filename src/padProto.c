@@ -256,56 +256,67 @@ PadReply    rep;
 PadCommand	cmd;
 int			rval;
 UdpCommPkt  p;
+int         retry;
 
 	if ( who > 50 )
 		return -EINVAL;
 
-	if ( 0 == ( p = udpCommAllocPacket() ) )
-		return -ENOMEM;
-
-	req          = udpCommBufPtr( p );
-	cmd          = (PadCommand)req->data;
-
-	req->version = PADPROTO_VERSION3;
-	req->nCmds   = who < 0 ? PADREQ_BCST : -who;
-
-	req->xid     = htonl(xid);
-
-	req->timestampHi = htonl(tsHi);
-	req->timestampLo = htonl(tsLo);
-
-	/* Add command-specific parameters */
-	switch ( PADCMD_GET(cmd->type = type) ) {
-		default:
-			req->cmdSize = sizeof(PadCommandRec);
-		break;
-
-		case PADCMD_STRM:
-			/* cmdData is a 'start command' struct */
-			memcpy(cmd, cmdData, sizeof(PadStrmCommandRec));
-			cmd->type    = type;
-			req->cmdSize = sizeof(PadStrmCommandRec);
-		break;
-
-		case PADCMD_SIM:
-			memcpy(cmd, cmdData, sizeof(PadSimCommandRec));
-			cmd->type = type;
-			req->cmdSize = sizeof(PadSimCommandRec);
-		break;
+	if ( (type & PADCMD_QUIET) ) {
+		retry = 0;
+	} else {
+		retry       = RETRIES;
+		timeout_ms /= (RETRIES+1);
+		if ( 0 == timeout_ms )
+			timeout_ms = 1;
 	}
 
-	if ( (rval = udpCommSendPkt(sd, p, sizeof(*req) + req->cmdSize)) < 0 ) {
-		fprintf(stderr,"padRequest: send failed -- %s\n",strerror(-rval));
-		return rval;
-	}
 
-	p = 0;
+	do { 
 
-	if ( !(type & PADCMD_QUIET) ) {
-		int retry = RETRIES;
+		if ( 0 == ( p = udpCommAllocPacket() ) )
+			return -ENOMEM;
 
-		do {
-		/* wait for reply */
+		req          = udpCommBufPtr( p );
+		cmd          = (PadCommand)req->data;
+
+		req->version = PADPROTO_VERSION3;
+		req->nCmds   = who < 0 ? PADREQ_BCST : -who;
+
+		req->xid     = htonl(xid);
+
+		req->timestampHi = htonl(tsHi);
+		req->timestampLo = htonl(tsLo);
+
+		/* Add command-specific parameters */
+		switch ( PADCMD_GET(cmd->type = type) ) {
+			default:
+				req->cmdSize = sizeof(PadCommandRec);
+				break;
+
+			case PADCMD_STRM:
+				/* cmdData is a 'start command' struct */
+				memcpy(cmd, cmdData, sizeof(PadStrmCommandRec));
+				cmd->type    = type;
+				req->cmdSize = sizeof(PadStrmCommandRec);
+				break;
+
+			case PADCMD_SIM:
+				memcpy(cmd, cmdData, sizeof(PadSimCommandRec));
+				cmd->type = type;
+				req->cmdSize = sizeof(PadSimCommandRec);
+				break;
+		}
+
+		if ( (rval = udpCommSendPkt(sd, p, sizeof(*req) + req->cmdSize)) < 0 ) {
+			fprintf(stderr,"padRequest: send failed -- %s\n",strerror(-rval));
+			return rval;
+		}
+
+		p = 0;
+
+		if ( !(type & PADCMD_QUIET) ) {
+
+			/* wait for reply */
 
 			if ( (p = udpCommRecv(sd, timeout_ms)) ) {
 				rep = (PadReply)udpCommBufPtr(p);
@@ -331,11 +342,12 @@ UdpCommPkt  p;
 				}
 			}
 
-		} while ( retry-- > 0 );
+			rval = -ETIMEDOUT;
+		} else {
+			rval = 0;
+		}
 
-		return -ETIMEDOUT;
+	} while ( retry-- > 0 );
 
-	}
-		
-	return 0;	
+	return rval;
 }

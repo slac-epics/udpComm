@@ -1,4 +1,4 @@
-/* $Id: devWfRawSig.c,v 1.2 2011/04/27 22:18:24 strauman Exp $ */
+/* $Id: devWfRawSig.c,v 1.3 2011/06/07 03:24:34 strauman Exp $ */
 
 /*=============================================================================
  
@@ -200,13 +200,14 @@ uint8_t  *d_p, *s_p;
 		jinc  = sz * (wb->stride > wb->segs.m ? wb->stride : wb->segs.m);
 		rowsz = sz;
 		jlim  = jinc * wb->segs.n;
-		dinc  = (wb->n - n_frag) * sz;
 	} else {
 		iinc  = sz * (wb->stride > wb->segs.n ? wb->stride : wb->segs.n);
 		rowsz = sz * wb->segs.n;
 		jinc  = rowsz;
 		jlim  = sz * wb->segs.n;
 	}
+
+	dinc  = (wb->n - n_frag) * sz;
 
 	for ( i = 0; i < ilim*iinc; i += iinc ) {
 		for ( j = 0; j < jlim; j += jinc ) {

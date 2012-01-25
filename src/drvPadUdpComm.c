@@ -711,7 +711,7 @@ int         bad_version_count = 0;
 		 * so we just do it prior to handling the one-and-only PAD
 		 */
 		if ( PadDataBpm == kind ) {
-			fidtestprocess();
+			fidTestProcess();
 		}
 #endif
 

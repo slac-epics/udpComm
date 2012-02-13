@@ -1,3 +1,5 @@
+20120206 (S.H.)
+ - configure/RELEASE - use event-R3-2-2-br_generaltime-2-0
 20120109 (T.S.)
  - src/padProto.c: Fix padRequest() - resend request when retrying.
  - src/drvPadUdpComm.c: restore old behavior: starting/stopping stream

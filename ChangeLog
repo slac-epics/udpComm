@@ -1,3 +1,8 @@
+20120304 (T.S.)
+ - src/drvPadUdpComm.c: if 'cook' returns a debug code then
+   still post with ordinary 'kind'.
+ - src/devWfRawSig.c: added more debugging messages (if debug
+   flag set).
 20120206 (S.H.)
  - configure/RELEASE - use event-R3-2-2-br_generaltime-2-0
 20120109 (T.S.)

@@ -1,4 +1,4 @@
-/* $Id: devWfRawSig.c,v 1.3 2011/06/07 03:24:34 strauman Exp $ */
+/* $Id: devWfRawSig.c,v 1.4 2012/01/25 15:29:57 strauman Exp $ */
 
 /*=============================================================================
  
@@ -57,7 +57,7 @@
 #define SEG_RE      0
 #define SEG_IM      1
 
-int    devWfRawSigDebug = 0;
+volatile int devWfRawSigDebug = 0;
 
 #define FLG_REG_WITH_WAVBUF	(1<<0)
 #define FLG_SET_LOPR        (1<<1)
@@ -460,13 +460,15 @@ double           max           =-1.E23;
 int32_t          imin, imax;
 
 	if ( devWfRawSigDebug & DEBUG_PROC )
-			epicsPrintf("Entering READ\n");
+			epicsPrintf("Entering READ (%s)\n", waveform_ps->name);
 
 	if ( waveform_ps->pact ) {
 		/* completion phase of async processing */
 		wb = wavBufAsyncComplete(record_p, &dpvt_ps->wbpvt, l->card, l->signal);
 		if ( ! wb ) {
 			rval = -1;
+			if ( devWfRawSigDebug & DEBUG_PROC )
+				epicsPrintf("Bailing - asyncComplete(PACT) returned NULL\n");
 			goto bail;
 		}
 	} else {
@@ -492,6 +494,8 @@ int32_t          imin, imax;
              * we prefer it over the second alternative.
              */
 			rval = -1;
+			if ( devWfRawSigDebug & DEBUG_PROC )
+				epicsPrintf("Bailing - wavBufGet() returned NULL\n");
 			goto bail;
 		}
 		/* is there asynchronous processing for this
@@ -539,6 +543,11 @@ int32_t          imin, imax;
 		epicsPrintf(DEVSUPNAM"(%s): Type size mismatch! Waveform: %i, FTVL: %li\n", waveform_ps->name, sz, dbValueSize(waveform_ps->ftvl));
 		rval = -1;
 		goto bail;
+	}
+
+	if ( devWfRawSigDebug & DEBUG_PROC ) {
+		epicsPrintf("%s: type 0x%x, size %i, m %i, n%i, segs.m %i, segs.n %i, nsegs %i\n",
+			waveform_ps->name, wb->type, sz, wb->m, wb->n, wb->segs.m, wb->segs.n, wb->segs.nsegs);
 	}
 
 	n = wb->n * wb->m;
@@ -643,7 +652,7 @@ bail:
 	    db_post_events(waveform_ps, &waveform_ps->rarm, (DBE_VALUE|DBE_LOG));
 
 	if ( devWfRawSigDebug & DEBUG_PROC )
-			epicsPrintf("Leaving READ\n");
+			epicsPrintf("Leaving READ (%s)\n", waveform_ps->name);
 	return rval;
 }
 

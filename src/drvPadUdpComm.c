@@ -747,9 +747,12 @@ int         bad_version_count = 0;
 					cook_stat = 0;
 					/* fall thru */
 				case PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_NOSCAN:
-					if (0 == drvPadUdpCommPostRaw( pkt, new_kind ))
+					if (0 == drvPadUdpCommPostRaw( pkt, new_kind )) {
 						posted++;
-					pkt = 0;
+						io.creatref( pkt );
+					} else {
+						pkt = 0;
+					}
 					/* fall thru */
 				default:
 				break;

@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.17 2011/05/02 17:41:28 strauman Exp $ */
+/* $Id: padStream.c,v 1.18 2011/12/09 21:25:31 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -582,7 +582,7 @@ struct timeval now_tv;
 		return rval;
 	}
 
-	if ( padStreamDebug & 1 ) {
+	if ( (padStreamDebug & 0x1000) ) {
 		/* hack timestamp; tag with our us clock */
 		rply->timestampLo = htonl(Read_hwtimer());
 	}
@@ -613,10 +613,13 @@ struct timeval now_tv;
 
 		drvLan9118FifoWr(plan, &replyPacket, UDPPKTSZ(sizeof(PadReplyRec)));
 
+		if ( (padStreamDebug & 0x1) ) {
+			printf("padStream: idx %i, nchannels %i, npkts %i\n", idx, nchannels, npkts);
+		}
+
 		if ( ! (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ) {
 			if ( rply->strm_cmd_idx && ! PADRPLY_STRM_IS_CM(rply) ) {
 				/* multi-fragment, row-major packet - request only a single channel! */
-printf("glox: idx %i, nchannels %i, npkts %i\n", idx, nchannels, npkts);
 				ch = idx * PADRPLY_STRM_NCHANNELS / npkts;
 				nchannels = 1;
 			} else {

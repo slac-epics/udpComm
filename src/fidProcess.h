@@ -1,4 +1,4 @@
-/* $Id: fidProcess.h,v 1.6 2010/01/19 01:20:34 strauman Exp $ */
+/* $Id: fidProcess.h,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
 #ifndef GENERIC_FID_PROCESS_H
 #define GENERIC_FID_PROCESS_H
 
@@ -6,9 +6,9 @@
 extern "C" {
 #endif
 
-extern int fidProcessHasBeam;
+extern volatile int fidProcessHasBeam;
 
-extern unsigned fidHeartbeat;
+extern volatile unsigned fidHeartbeat;
 
 /* find out if there should be beam during this cycle */
 static __inline__ int

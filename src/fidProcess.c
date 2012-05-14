@@ -10,8 +10,8 @@
 #include <drvPadUdpComm.h>
 
 volatile DrvPadUdpCommHWTime fidTimeBaseline   = 0;
-int                          fidProcessHasBeam = 0;
-unsigned                     fidHeartbeat      = 0;
+volatile int                 fidProcessHasBeam = 0;
+volatile unsigned            fidHeartbeat      = 0;
 
 void
 fidTestProcess(void) __attribute__((weak, alias("fidTestProcess_default")));

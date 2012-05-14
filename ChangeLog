@@ -1,3 +1,6 @@
+20120514 (T.S.)
+ - src/fidProcess.c, src/fidProcess.h: made global variables
+   'fidProcessHasBeam', 'fidHeartbeat' volatile.
 20120304 (T.S.)
  - src/drvPadUdpComm.c: if 'cook' returns a debug code then
    still post with ordinary 'kind'.

@@ -27,38 +27,52 @@ epicsTimeStamp ts;
 #define E_MOD2 1
 #define E_MOD5 4
 
-void
-fidTimeGetBaseline_generic(void *unused)
+unsigned
+fidProcessGeneric(epicsTimeStamp *time_s_p, unsigned time_slot_mask)
 {
+epicsTimeStamp             time_s;
 #ifndef TEST_ONLY
 /* This is actually an array type */
 evrModifier_ta             modifier_a;
-epicsTimeStamp             time_s;
 unsigned long              patternStatus;
 int                        st;
-DrvPadUdpCommHWTime        now, diff;
+#endif
+
+	if ( !time_s_p )
+		time_s_p = &time_s;
 
 	fidProcessHasBeam = 1;
 
+#ifndef TEST_ONLY
 	/* only interested in 120Hz... */
-	st = evrTimeGetFromPipeline( &time_s, evrTimeCurrent, modifier_a, &patternStatus, 0, 0, 0);
+	st = evrTimeGetFromPipeline( time_s_p, evrTimeCurrent, modifier_a, &patternStatus, 0, 0, 0);
 	if ( st ) {
 		epicsPrintf("drvPadUdpComm: (fidTimeGetBaseline_generic()) epicsTimeGetFromPipeline failed (status %i)\n", st);
 		
-		return;
+		return 0;
 	}
 
-	if ( (TIMESLOT1_MASK | TIMESLOT4_MASK) & modifier_a[E_MOD2] ) {
+	if ( (time_slot_mask & modifier_a[E_MOD2]) ) {
 		/* This is it! */
-		now = drvPadUdpCommHWTime();
-		diff = now - fidTimeBaseline;
-		fidTimeBaseline = now;
+		fidTimeBaseline = drvPadUdpCommHWTime();
 
 		fidHeartbeat++;
 
-		drvPadUdpCommSendStartAll(&time_s);
+		drvPadUdpCommSendStartAll( time_s_p );
 	}
+
+	return (modifier_a[E_MOD2] & TIMESLOT_MASK);
+#else
+	epicsTimeGetCurrent( time_s_p );
+	drvPadUdpCommSendStartAll( time_s_p );
+	return 1;
 #endif
+}
+
+void
+fidTimeGetBaseline_generic(void *unused)
+{
+	fidProcessGeneric(0, TIMESLOT1_MASK | TIMESLOT4_MASK);
 }
 
 void

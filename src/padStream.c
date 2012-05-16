@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.19 2012/05/09 23:56:45 strauman Exp $ */
+/* $Id: padStream.c,v 1.20 2012/05/16 00:37:33 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -8,7 +8,7 @@
 #include <rtems/timerdrv.h>
 #include <errno.h>
 #include <assert.h>
-#include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>
@@ -460,6 +460,14 @@ streamTest(void *packetBuffer,
 
 
 static PadStripSimValRec strips;
+
+void
+padStreamDumpStrips(void)
+{
+	printf("Current simulation values:\n");
+	printf("0x%08"PRIx32" 0x%08"PRIx32" 0x%08"PRIx32" 0x%08"PRIx32"\n", strips.val[0], strips.val[1], strips.val[2], strips.val[3]);
+	printf("%10"PRIi32" %10"PRIi32" %10"PRIi32" %10"PRIi32"\n", strips.val[0], strips.val[1], strips.val[2], strips.val[3]);
+}
 
 PadStreamGetdataProc padStreamSim_getdata = padStreamSim_iir2_getdata;
 

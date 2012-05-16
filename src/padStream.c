@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.18 2011/12/09 21:25:31 strauman Exp $ */
+/* $Id: padStream.c,v 1.19 2012/05/09 23:56:45 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -614,7 +614,7 @@ struct timeval now_tv;
 		drvLan9118FifoWr(plan, &replyPacket, UDPPKTSZ(sizeof(PadReplyRec)));
 
 		if ( (padStreamDebug & 0x1) ) {
-			printf("padStream: idx %i, nchannels %i, npkts %i\n", idx, nchannels, npkts);
+			printf("padStream: idx %i, type %i, nchannels %i, npkts %i\n", idx, type, nchannels, npkts);
 		}
 
 		if ( ! (rply->strm_cmd_flags & PADCMD_STRM_FLAG_C1) ) {

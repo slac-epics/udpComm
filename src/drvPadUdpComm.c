@@ -509,6 +509,7 @@ PadReply rply;
 unsigned chan;
 unsigned idx;
 int      rval = -1;
+uint32_t oxid;
 
 	if ( !pkt )
 		return rval;
@@ -535,10 +536,16 @@ int      rval = -1;
 			epicsPrintf("drvPadUdpCommPostRaw: inconsistent segment size, dropping\n");
 			goto bail;
 		}
-		if ( rply->xid != ((PadReply)((uintptr_t)pb->segs.data[pb->segs.nsegs-1] - (uintptr_t)((PadReply)0)->data))->xid ) {
+
+		oxid = ((PadReply)((uintptr_t)pb->segs.data[pb->segs.nsegs-1] - (uintptr_t)((PadReply)0)->data))->xid;
+		if ( rply->xid != oxid ) {
 			/* fragment already part of a new stream packet */
 			wavBufFree( pb );
 			pb = wbStaged[chan][kind] = 0;
+
+			if ( ( drvPadUdpCommDebug & 2 ) ) {
+				errlogPrintf("postRaw[%i][%i]: XID overrun, dropping (old: 0x%08"PRIx32", new: 0x%08x"PRIx32"\n", chan, kind, xid, oxid);
+			}
 		}
 	}
 
@@ -562,6 +569,10 @@ int      rval = -1;
 		pb->usrData = (void*)FRAG_MAX;
 		pb->ts.secPastEpoch  = ntohl(rply->timestampHi);
 		pb->ts.nsec          = ntohl(rply->timestampLo);
+
+		if ( ( drvPadUdpCommDebug & 2 ) ) {
+			errlogPrintf("postRaw[%i][%i]: new buffer: m %u, segs.m %u, segs.n %u\n", chan, kind, pb->m, pb->segs.m, pb->segs.n);
+		}
 	}
 
 	idx = PADRPLY_STRM_CMD_IDX_GET( rply->strm_cmd_idx );
@@ -571,10 +582,18 @@ int      rval = -1;
 		goto bail;
 	}
 
+	if ( ( drvPadUdpCommDebug & 2 ) ) {
+		errlogPrintf("postRaw[%i][%i]: idx %i, usrData: %"PRIiPTR"\n", chan, kind, idx, (intptr_t)pb->usrData);
+	}
+
 	if ( idx + 1 > pb->segs.nsegs )
 		pb->segs.nsegs = idx + 1;
 	pb->segs.data[idx] = rply->data;
 	pkt                = 0;
+
+	if ( ( drvPadUdpCommDebug & 2 ) ) {
+		errlogPrintf("postRaw[%i][%i]: idx %i\n", chan, kind, idx);
+	}
 
 	if ( ! (PADRPLY_STRM_CMD_IDX_MF & rply->strm_cmd_idx) ) {
 		/* found the last fragment */
@@ -582,6 +601,10 @@ int      rval = -1;
 		pb->n       = (idx + 1) * PADRPLY_STRM_NSAMPLES(rply) / pb->m;
 	} else {
 		pb->usrData = (void*)( (uintptr_t)pb->usrData - 1 );
+	}
+
+	if ( ( drvPadUdpCommDebug & 2 ) ) {
+		errlogPrintf("postRaw[%i][%i]: new usrData: %"PRIiPTR"\n", chan, kind, (intptr_t)pb->usrData);
 	}
 
 	if ( 0 == (uintptr_t)pb->usrData ) {

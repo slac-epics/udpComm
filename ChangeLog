@@ -1,3 +1,30 @@
+20120524 (T.S.)
+ - BUGFIX: src/drvPadAdcStream.c - when reading the FIFOS the first
+   couple of samples must be skipped as they generate initial
+   clock cycles. Until now we used the stream packet index == 0
+   condition to detect the first samples. With multi-packet
+   streams this is no longer correct. E.g., in row-major format
+   a new row is started at a non-zero index.
+   As a result, the second argument to 'drvPadReadFifosXXXMajor()'
+   was changed (but is backwards compatible for streams with
+   only single packets).
+ - API CHANGE: src/padStream.h, src/drvPadAdcStream.h,
+   src/drvPadAdcStream.c:
+   PadStreamGetdataProc() received a new, additional
+   argument: the total number of samples per channel (= 'row dimension').
+   This helps the low-level driver with formatting the data.
+   CAVEAT: 'getdata' routines on PADs need to be updated to respect
+   the new API. 
+ - src/drvPadUdpComm.c UDP listener thread priority increased
+   from epicsThreadPriorityHigh -> epicsThreadPriorityMax.
+ - src/padStream.c: FIXED maximum number of samples accepted into
+   a packet. It turns out that the previous value of 1440 would not
+   fit (adding all the headers) into a typical MTU of 1500.
+   Rounded down to the next multiple of 16 (be vector-aligned to
+   help SIMD on the master side) which are 1424 bytes.
+ 
+   Updated 'getdata' variants to respect new API (see above).
+   
 20120514 (T.S.)
  - src/fidProcess.c, src/fidProcess.h: Added fidProcessGeneric().
 20120514 (T.S.)

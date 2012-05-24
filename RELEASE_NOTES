@@ -1,3 +1,22 @@
+udpComm-R2-3-0:
+        - API CHANGE: (see src/padStream.h)
+          PadStreamGetdataProc() received a new, additional
+          argument: the total number of samples per channel (= 'row dimension').
+          This helps the low-level driver with formatting the data.
+          CAVEAT: 'getdata' routines on PADs need to be updated to respect
+          the new API. 
+        - BUGFIX: src/drvPadAdcStream.c - when reading the FIFOS the first
+          couple of samples must be skipped as they generate initial
+          clock cycles. Until now we used the stream packet index == 0
+          condition to detect the first samples. With multi-packet
+          streams this is no longer correct. E.g., in row-major format
+          a new row is started at a non-zero index.
+          As a result, the second argument to 'drvPadReadFifosXXXMajor()'
+          was changed (but is backwards compatible for streams with
+          only single packets).
+        - public fidProcessGeneric() routine added this transmits timestamps
+          to PADs at fiducial-time. The 'active' timeslots are configurable
+          (but default to TS1+TS4).
 udpComm-R2-2-2:
 		- Build against event module version: event-R3-2-2-br_generaltime-2-2
 udpComm-R2-2-1: 

@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.20 2012/05/16 00:37:33 strauman Exp $ */
+/* $Id: padStream.c,v 1.21 2012/05/16 01:39:28 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -209,7 +209,10 @@ int             nbytes;
 
 		padStreamXid = rand_r( &padStreamRand );
 
-		if ( nbytes > 1440 ) {
+		/* common MTU is 1500; subtract ethernet (14), IP (20), UDP (8), padProto (20) = 1438; round
+		 * down to next multiple of 16. -> 1424
+		 */
+		if ( nbytes > 1424 ) {
 
 			/* doesn't fit in one packet */
 
@@ -447,22 +450,23 @@ static void *
 streamTest(void *packetBuffer,
 			int idx,
 			int channels,
-			int nsamples,
+			int nsamples_tot,
+			int nsamples_frag,
 			int d32,
 			int little_endian,
 			int column_major,
 			void *uarg)
 {
 	return d32 ? 
-        streamTest32(packetBuffer, idx, channels, nsamples, little_endian, column_major, uarg) :
-        streamTest16(packetBuffer, idx, channels, nsamples, little_endian, column_major, uarg);
+        streamTest32(packetBuffer, idx, channels, nsamples_frag, little_endian, column_major, uarg) :
+        streamTest16(packetBuffer, idx, channels, nsamples_frag, little_endian, column_major, uarg);
 }
 
 
 static PadStripSimValRec strips;
 
 void
-padStreamDumpStrips(void)
+padStreamDumpSimVals(void)
 {
 	printf("Current simulation values:\n");
 	printf("0x%08"PRIx32" 0x%08"PRIx32" 0x%08"PRIx32" 0x%08"PRIx32"\n", strips.val[0], strips.val[1], strips.val[2], strips.val[3]);
@@ -471,11 +475,13 @@ padStreamDumpStrips(void)
 
 PadStreamGetdataProc padStreamSim_getdata = padStreamSim_iir2_getdata;
 
+/* This does not yet support fragmented streams! */
 void *
 padStreamSim_iir2_getdata(void *packetBuffer,
 			int idx,
 			int nchannels,
-			int nsamples,
+			int nsamples_tot,
+			int nsamples_frag,
 			int d32,
 			int little_endian,
 			int column_major,
@@ -510,27 +516,27 @@ static unsigned long noise = 1;
 			}
 		}
 		if ( column_major ) {
-			for ( i=0; i<nsamples; i++ ) {
+			for ( i=0; i<nsamples_frag; i++ ) {
 				for ( j=0; j<nchannels; j++ ) {
 					bufl[i + j] = tmp[j];
 				}
 			}
 		} else {
-			for ( i=0; i<nsamples; i++ ) {
+			for ( i=0; i<nsamples_frag; i++ ) {
 				for ( j=0; j<nchannels; j++ ) {
-					bufl[i + j*nsamples] = tmp[j];
+					bufl[i + j*nsamples_frag] = tmp[j];
 				}
 			}
 		}
 	} else {
 		if ( column_major ) {
 			for ( j=0; j<nchannels; j++, ch = j ) {
-				iir2_bpmsim(buf++, nsamples, ini->val[ch], 0,  &noise, swp, nchannels);
+				iir2_bpmsim(buf++, nsamples_frag, ini->val[ch], 0,  &noise, swp, nchannels);
 			}
 		} else {
 			for ( j=0; j<nchannels; j++, ch = j ) {
-				iir2_bpmsim(buf, nsamples, ini->val[ch], 0,  &noise, swp, 1);
-				buf += nsamples;
+				iir2_bpmsim(buf, nsamples_frag, ini->val[ch], 0,  &noise, swp, 1);
+				buf += nsamples_frag;
 			}
 		}
 	}
@@ -641,6 +647,7 @@ struct timeval now_tv;
 						&rply->data,
 						idx,
 						ch,
+						nsamples,
 						nsamples_frag, 
 						rply->strm_cmd_flags & PADCMD_STRM_FLAG_32,
 						rply->strm_cmd_flags & PADCMD_STRM_FLAG_LE,

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: drvPadAdcStream.h,v 1.1 2011/05/02 17:47:46 strauman Exp $ */
 #ifndef DRV_PAD_ADC_STREAM_H
 #define DRV_PAD_ADC_STREAM_H
 
@@ -7,8 +7,8 @@
 
 /* read PAD FIFO into column or row-major array.
  *
- * 'idx': fragment index. If routine is called multiple
- *        times to read a single waveform then 'idx'
+ * 'notFirst': If routine is called multiple
+ *        times to read a single waveform then 'notFirst'
  *        must be 0 the first time and nonzero thereafter.
  *        This is because the FIFO needs a few initial
  *        clock cycles...
@@ -32,14 +32,14 @@
  */
 
 void
-drvPadReadFifosColMajor(volatile void *dst_p_v, int idx, int channels, int n, int le);
+drvPadReadFifosColMajor(volatile void *dst_p_v, int notFirst, int channels, int n, int le);
 
 void
-drvPadReadFifosRowMajor(volatile void *dst_pv, int idx, int ch, int n, int le);
+drvPadReadFifosRowMajor(volatile void *dst_pv, int notFirst, int ch, int n, int le);
 
 /* Getdata routine to be used with padStreamSend */
 void *
-drvPadAdcStream_getdata(void *packBuffer, int idx, int channels, int nsamples, int d32, int endianLittle, int colMajor, void *uarg);
+drvPadAdcStream_getdata(void *packBuffer, int idx, int channels, int nsamples_tot, int nsamples_frag, int d32, int endianLittle, int colMajor, void *uarg);
 
 /* Argument checker to be used in combination with drvPadAdcStream_getdata() */
 int

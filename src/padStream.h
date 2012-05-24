@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.7 2011/04/25 21:16:47 strauman Exp $ */
+/* $Id: padStream.h,v 1.8 2011/04/27 22:18:34 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -50,7 +50,7 @@ padStreamStart(PadRequest req, PadStrmCommand scmd, int me, uint32_t hostip);
 #define PADSTRM_GETDATA_F_CM	(1<<1)
 #define PADSTRM_GETDATA_F_32	(1<<2)
 
-typedef void * (*PadStreamGetdataProc)(void *packBuffer, int idx, int channels, int nsamples, int d32, int endianLittle, int colMajor, void *uarg);
+typedef void * (*PadStreamGetdataProc)(void *packBuffer, int idx, int channels, int nsamples_tot, int nsamples_frag, int d32, int endianLittle, int colMajor, void *uarg);
 
 int
 padStreamSend(PadStreamGetdataProc getdata, int type, void *uarg);
@@ -86,7 +86,8 @@ void *
 padStreamSim_iir2_getdata(void *packetBuffer,
 			int idx,
 			int channels,
-			int nsamples,
+			int nsamples_tot,
+			int nsamples_frag,
 			int d32,
 			int little_endian,
 			int column_major,
@@ -115,6 +116,10 @@ typedef enum {
 	PadDataCalGrn,
 	PadDataCavity
 } PadDataKind;
+
+/* Dump simulation values to stdout */
+void
+padStreamDumpSimVals(void);
 
 #ifdef __cplusplus
 }

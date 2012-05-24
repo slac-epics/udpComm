@@ -1,4 +1,4 @@
-/* $Id: drvPadAdcStream.c,v 1.1 2011/05/02 17:47:46 strauman Exp $ */
+/* $Id: drvPadAdcStream.c,v 1.2 2012/01/09 21:27:13 strauman Exp $ */
 
 #include <rtems.h>
 #include <assert.h>
@@ -93,7 +93,7 @@ uint32_t	bswap(uint32_t x)
 #define CPY4WS do { CPYWS(0); CPYWS(2); CPYWS(4); CPYWS(6); } while (0)
 
 void
-drvPadReadFifosColMajor(volatile void *dst_p_v, int idx, int channels, int n, int do_bswap)
+drvPadReadFifosColMajor(volatile void *dst_p_v, int notFirst, int channels, int n, int do_bswap)
 {
 volatile int16_t_a *dst_p = dst_p_v;
 volatile int16_t_a *src_p = (volatile int16_t_a *)CS1_BASE_ADDR;
@@ -105,7 +105,8 @@ volatile int16_t_a *src_p = (volatile int16_t_a *)CS1_BASE_ADDR;
 
 	n *= PADRPLY_STRM_NCHANNELS;
 
-	if ( 0 == idx ) {
+	/* Weird double negation for sake of bwds compatibility */
+	if ( ! notFirst ) {
 		/* Every channel needs 3 initial clock cycles (Ron uses /CS for the clock also) */
 		*(volatile uint32_t_a*)(src_p + 0); src_p[0];
 		*(volatile uint32_t_a*)(src_p + 2); src_p[2];
@@ -195,7 +196,7 @@ register volatile uint32_t_a *dst2_p;
 }
 
 void
-drvPadReadFifosRowMajor(volatile void *dst_pv, int idx, int ch, int n, int do_bswap)
+drvPadReadFifosRowMajor(volatile void *dst_pv, int notFirst, int ch, int n, int do_bswap)
 {
 volatile int16_t_a *dst_p = dst_pv;
 volatile int16_t_a *src_p = (volatile int16_t_a *)CS1_BASE_ADDR;
@@ -203,7 +204,8 @@ int                odd, nxt_odd;
 
 	/* Every channel needs 3 initial clock cycles (Ron uses /CS for the clock also) */
 
-	if ( 0 == idx ) {
+	/* Weird double negation for sake of bwds compatibility */
+	if ( ! notFirst ) {
 		if ( ch & 1 )
 			*(volatile uint32_t_a*)(src_p + 0); src_p[0];
 		if ( ch & 2 )
@@ -242,16 +244,17 @@ int                odd, nxt_odd;
 }
 
 void *
-drvPadAdcStream_getdata(void *packBuffer, int idx, int channels, int nsamples, int d32, int endianLittle, int colMajor, void *uarg)
+drvPadAdcStream_getdata(void *packBuffer, int idx, int channels, int nsamples_tot, int nsamples_frag, int d32, int endianLittle, int colMajor, void *uarg)
 {
-	assert ( 0 == ( nsamples & 1 ) );
+int notFirst = ((idx * nsamples_frag) % nsamples_tot != 0) ;
+	assert ( 0 == ( nsamples_frag & 1 ) );
 	if ( PADRPLY_STRM_NCHANNELS == channels ) {
 		if ( colMajor )
-			drvPadReadFifosColMajor( LAN9118_FIFO_HACK, idx, PADCMD_STRM_CHANNELS_ALL, nsamples, endianLittle );	
+			drvPadReadFifosColMajor( LAN9118_FIFO_HACK, notFirst, PADCMD_STRM_CHANNELS_ALL, nsamples_frag, endianLittle );	
 		else
-			drvPadReadFifosRowMajor( LAN9118_FIFO_HACK, idx, PADCMD_STRM_CHANNELS_ALL, nsamples, endianLittle );	
+			drvPadReadFifosRowMajor( LAN9118_FIFO_HACK, notFirst, PADCMD_STRM_CHANNELS_ALL, nsamples_frag, endianLittle );	
 	} else {
-			drvPadReadFifosRowMajor( LAN9118_FIFO_HACK, idx, (1<<channels), nsamples, endianLittle );	
+			drvPadReadFifosRowMajor( LAN9118_FIFO_HACK, notFirst, (1<<channels), nsamples_frag, endianLittle );	
 	}
 	return 0;
 }

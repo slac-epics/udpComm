@@ -544,7 +544,7 @@ uint32_t oxid;
 			pb = wbStaged[chan][kind] = 0;
 
 			if ( ( drvPadUdpCommDebug & 2 ) ) {
-				errlogPrintf("postRaw[%i][%i]: XID overrun, dropping (old: 0x%08"PRIx32", new: 0x%08x"PRIx32"\n", chan, kind, xid, oxid);
+				errlogPrintf("postRaw[%i][%i]: XID overrun, dropping (old: 0x%08"PRIx32", new: 0x%08"PRIx32"\n", chan, kind, rply->xid, oxid);
 			}
 		}
 	}
@@ -753,6 +753,10 @@ int         bad_version_count = 0;
 			cook_stat = cb->cook(rply, nsamples, layout_cm, kind, cb->cookClosure);
 		} else {
 			cook_stat = -1;
+		}
+
+		if ( drvPadUdpCommDebug & 1 ) {
+			errlogPrintf("STRM: cook_stat %i\n", cook_stat);
 		}
 
 		posted = 0;
@@ -1027,7 +1031,7 @@ epicsTimeStamp ts;
 
 	epicsThreadCreate(
 			"drvPadUdpCommListener",
-			epicsThreadPriorityHigh,
+			epicsThreadPriorityMax,
 			4*epicsThreadGetStackSize(epicsThreadStackBig),
 			drvPadUdpCommListener,
 			0);

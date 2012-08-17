@@ -1,3 +1,6 @@
+udpComm-R2-3-2:
+	       - Build against event module: event-R3-2-2-br_generaltime-2-4
+
 ucpComm-R2-3-1:
                - Build against event module version: event-R3-2-2-br_generaltime-2-3
 

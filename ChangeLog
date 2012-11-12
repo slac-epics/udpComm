@@ -1,3 +1,37 @@
+20121112 (T.S.)
+ - README, README.drvPadUdpComm: updated docs.
+
+ - src/udpCommBSD.c FIX: udpCommRecv timeout < 0 indicates wait forever;
+   BSD implementation didn't implement that correctly. Fixed now.
+
+ - src/padStream.h, src/padStream.c, src/padProto.h, src/padProto.c,
+   src/hostStream.c, src/drvPadAdcStream.h, src/drvPadAdcStream.c,
+   src/drvPadUdpComm.c:
+   PADPROTO_VERSION4 adds a 'feature query' command which allows
+   the client to find the stream formats supported by the server.
+
+ - src/fidProcess.c: Use macros from event module only if TEST_ONLY
+   is not defined.
+
+ - src/drvPadUdpCommIO.h, src/drvPadUdpComm.h, src/drvPadUdpComm.c
+
+   added a new 'setup' callback which is used to negotiate features
+   requested by the client and features supported by the server.
+   Server features are determined using the new 'stream query'
+   protocol command provided by PADPROTO_VERSION4.
+   drvPadUdpCommSetup() does not determine the IO methods based
+   on the name ("VME" string vs. IP address) anymore but requires
+   a new, third argument which passes/defines the IO methods.
+   By default, udpComm is used.
+
+ - src/drvPadUdpComm.c: BUGFIX: timeout parameters are passed
+   to padRequest in host-byte order.
+
+ - src/drvPadAdcStream.h, src/drvPadAdcStream.c: Moved several
+   generic routines supporting the PAD digitizer into separate
+   'drvPadAdcStream' module (can be used by multiple apps
+   employing PADs).
+
 20120524 (T.S.)
  - BUGFIX: src/drvPadAdcStream.c - when reading the FIFOS the first
    couple of samples must be skipped as they generate initial

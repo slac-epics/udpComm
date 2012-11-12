@@ -1,4 +1,4 @@
-/* $Id: drvPadAdcStream.c,v 1.2 2012/01/09 21:27:13 strauman Exp $ */
+/* $Id: drvPadAdcStream.c,v 1.3 2012/05/24 23:07:13 strauman Exp $ */
 
 #include <rtems.h>
 #include <assert.h>
@@ -6,8 +6,10 @@
 #include <stdlib.h>
 #include <lanIpBasicSetup.h>
 #include <drvLan9118.h>
+#include <bsp/coldfUtils.h>
 
 #include <epicsThread.h>
+#include <epicsEvent.h>
 #include <errlog.h>
 #include <osiSock.h>
 
@@ -275,22 +277,48 @@ drvPadAdcStreamReport(int level)
 	return 0;
 }
 
+uint32_t
+drvPadAdcStreamQuery(PadRequest req)
+{
+uint32_t on, off;
+	on = PADCMD_STRM_FLAG_LE | PADCMD_STRM_FLAG_C1 | PADCMD_STRM_FLAG_CM;
+
+	/* D32 not supported; must be off */
+	off = on | PADCMD_STRM_FLAG_32;
+	
+	return (on<<8) | off;
+}
+
 int
 drvPadAdcStream_start_stop_cb(PadRequest req, PadStrmCommand start, void *uarg)
 {
-
 	/* req is only non-NULL when the stream is started */
 	if ( req ) {
-		if ( PADPROTO_VERSION3 != req->version ) {
+		if ( PADPROTO_VERSION4 != req->version ) {
 			/* unrecognized version */
 			return -ENOTSUP;
 		}
 	} 
 
 	if ( start ) {
-		if ( (start->flags & PADCMD_STRM_FLAG_32) ) {
-			/* unsupported */
-			return -ENOTSUP;
+		switch ( PADCMD_GET(start->type ) ) {
+
+			default:
+				return -EINVAL;
+
+			case PADCMD_SQRY:
+				/* query for supported features */
+				return drvPadAdcStreamQuery( req );
+
+			case PADCMD_STRM:
+				if ( (start->flags & PADCMD_STRM_FLAG_32) ) {
+					/* unsupported */
+					return -ENOTSUP;
+				}
+				break;
+
+			case PADCMD_STOP:
+				break;
 		}
 	}
 	return 0;
@@ -365,4 +393,78 @@ PadUdpThreadArg  arg = arg_p;
 	}
 	/* arg is probably never freed but who cares... */
 	free(arg);
+}
+
+static volatile int simMode = 0;
+unsigned drvPadAdcStreamIRQs = 0;
+static epicsEventId signalIRQ;
+
+void
+drvPadAdcStreamISR(void *arg_p)
+{
+DrvPadAdcStreamConfig cfg = arg_p;
+
+	coldfEportIntDisable(cfg->irq_pin);
+
+	/* Clear interrupt here so we can detect a trigger overrun */
+	coldfEportFlagClr(cfg->irq_pin);
+
+	/* disarm by raising SW trigger
+	 *
+	 * NOTE: THIS REQUIRES THE TRIGGER INPUT BEING 'active high'
+	 *       w/o this arrangement there is no way to disarm
+	 *       the PAD and preserve its FIFO.
+	 *       We use this triggering scheme as a workaround:
+	 *
+	 *   Trigger:  ----------------      ------------------
+	 *                            | 10ns |                | overrun
+	 *                            |______|                |___
+	 *
+	 *       IRQ:                               -------------
+	 *                                     fifo |
+	 *                                     full |
+	 *            ______________________________|
+	 *
+	 *   SW-TRIG:                                      --------
+	 *                                                 |
+	 *               'armed'                       ISR |disarmed
+	 *            _____________________________________|
+	 */
+	coldfEportEpdrSet(cfg->trig_pin, 1);
+
+	drvPadAdcStreamIRQs++;
+
+	epicsEventSignal(signalIRQ);
+}
+
+int
+drvPadAdcSetSimMode(int val)
+{
+int rval = simMode;
+	if ( val >= 0 )
+		simMode = val;
+	return rval;
+}
+
+void
+drvPadAdcStreamThreadFunc(void *arg_p)
+{
+DrvPadAdcStreamConfig cfg = arg_p;
+int status;
+
+	while (1) {
+		epicsEventWait(signalIRQ);
+		if ( simMode ) {
+			status = padStreamSim(0, 0);
+		} else {
+			status = padStreamSend(cfg->get_data, cfg->kind, cfg->get_data_arg);
+		}
+		/* ignore error status; could be that streaming is switched off; */
+		
+		/* Make sure interrupt is clear */
+		coldfEportFlagClr(cfg->irq_pin);
+		/* release trigger */
+		coldfEportEpdrSet(cfg->trig_pin, 0);
+		coldfEportIntEnable(cfg->irq_pin);
+	}
 }

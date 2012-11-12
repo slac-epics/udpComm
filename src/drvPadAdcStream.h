@@ -1,4 +1,4 @@
-/* $Id: drvPadAdcStream.h,v 1.1 2011/05/02 17:47:46 strauman Exp $ */
+/* $Id: drvPadAdcStream.h,v 1.2 2012/05/24 23:07:56 strauman Exp $ */
 #ifndef DRV_PAD_ADC_STREAM_H
 #define DRV_PAD_ADC_STREAM_H
 
@@ -51,7 +51,19 @@ drvPadAdcStreamReport(int level);
 epicsThreadId
 drvPadAdcStreamInit(int (*start_stop_cb)(PadRequest, PadStrmCommand, void*));
 
+/* query stream features */
+uint32_t
+drvPadAdcStreamQuery(PadRequest req);
+
 void
 padUdpThread(void *arg_p);
+
+typedef struct DrvPadAdcStreamConfigRec_ {
+	int         irq_pin;
+	int         trig_pin;
+	PadDataKind kind;
+	PadStreamGetdataProc get_data;
+	void        *get_data_arg;
+} DrvPadAdcStreamConfigRec, *DrvPadAdcStreamConfig;
 
 #endif

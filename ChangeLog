@@ -1,4 +1,8 @@
 20121112 (T.S.)
+ - src/drvPadUdpComm.c: use 'recv' with indefinite timeout and
+   use the watchdog task to issue drvPadUdpCommSendStartAll()
+   if no data of any kind on no used channel has arrived.
+
  - README, README.drvPadUdpComm: updated docs.
 
  - src/udpCommBSD.c FIX: udpCommRecv timeout < 0 indicates wait forever;

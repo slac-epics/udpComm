@@ -14,6 +14,7 @@
 #include <drvSup.h>
 #include <iocsh.h>
 #include <registry.h>
+#include <cantProceed.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -677,8 +678,11 @@ int         bad_version_count = 0;
 		io.free(pkt);
 
 		/* keep sending start command until we receive something */
-		while ( !( pkt = io.recv(sd, drvPadUdpCommTimeout)) )
-			drvPadUdpCommSendStartAll(0);
+		pkt = io.recv(sd, -1);
+
+		if ( 0 == pkt ) {
+			cantProceed("FATAL ERROR: io.recv(timeout_forever) returned NULL\n");
+		}
 
 		tDiff    = drvPadUdpCommHWTime();
 
@@ -845,6 +849,11 @@ DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
 				}
 			}
 		epicsInterruptUnlock(key);
+
+		/* If we get nothing at all start all streams (maybe they rebooted the PAD) */
+		if ( sa == drvPadUdpCommChannelsInUseMask ) {
+			drvPadUdpCommSendStartAll(0);
+		}
 
 		if ( cb->watchdog ) {
 			/* Only bark if all kinds of data are timed-out */

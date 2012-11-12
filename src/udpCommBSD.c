@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.6 2010/04/16 22:22:38 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.7 2011/04/20 20:46:44 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -176,7 +176,8 @@ socklen_t          len;
 	FD_ZERO(&fds);
 	FD_SET(sd, &fds);
 
-	if ( select(sd+1, &fds, 0, 0, &tv) <= 0 )
+	/* timeout_ms < 0 indicates blocking forever */
+	if ( select(sd+1, &fds, 0, 0, timeout_ms >= 0 ? &tv : 0) <= 0 )
 		return 0;
 
 	if ( !(p = udpCommAllocPacket()) )

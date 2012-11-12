@@ -118,7 +118,10 @@ DrvPadUdpCommPrefsRec     drvPadUdpCommPrefs     = { 0 };
 volatile DrvPadUdpCommHWTime drvPadUdpCommHWTimeBaseline [MAX_BPM] = { 0 };
 volatile DrvPadUdpCommHWTime drvPadUdpCommPktTimeBaseline[MAX_BPM] = { 0 };
 
+static int udpCommSetup(const char *arg, uint32_t *peer_ip_p, int *peer_port_p);
+
 static DrvPadUdpCommIORec io = {
+	setup:    udpCommSetup,
 	open:     udpCommSocket,
 	close:    udpCommClose,
 	connect:  udpCommConnect,
@@ -153,7 +156,7 @@ strmCmdInit(int d32, int col_maj)
 {
 int i;
 
-	padStrmCmd.req.version = PADPROTO_VERSION3;
+	padStrmCmd.req.version = PADPROTO_VERSION4;
 	padStrmCmd.req.nCmds   = MAX_BPM;
 	padStrmCmd.req.cmdSize = sizeof(padStrmCmd.cmd[0]);
 	for ( i=0; i<MAX_BPM; i++ ) {
@@ -199,7 +202,7 @@ epicsTimeStamp ts;
 				channel,
 				PADCMD_STOP | PADCMD_QUIET,
 				drvPadUdpCommGetXid(),
-				htonl(ts.secPastEpoch), htonl(ts.nsec),
+				ts.secPastEpoch, ts.nsec,
 				0,
 				0,
 				drvPadUdpCommTimeout);
@@ -236,7 +239,7 @@ epicsTimeStamp    ts;
 					channel,
 					PADCMD_STRM | PADCMD_QUIET,
 					drvPadUdpCommGetXid(),
-					htonl(ts.secPastEpoch), htonl(ts.nsec),
+					ts.secPastEpoch, ts.nsec,
 					&scmd,
 					0,
 					drvPadUdpCommTimeout);
@@ -379,8 +382,8 @@ int drvPadUdpCommSd       = -1;
 int drvPadUdpCommPort     = PADPROTO_PORT;
 int drvPadUdpCommTimeout  = 5000;
 double drvPadUdpCommStrmTimeout = 5.0;
-char *drvPadUdpCommPeer   = 0;
 uint32_t drvPadUdpCommPeerAddr = INADDR_NONE;
+int drvPadUdpCommHasSetup = 0;
 
 WavBuf wbStaged[WAV_BUF_NUM_SLOTS][WAV_BUF_NUM_KINDS] = {{0}};
 
@@ -469,7 +472,7 @@ epicsTimeStamp    ts;
 				channel,
 				scmd.type,
 				xid,
-				htonl(ts.secPastEpoch), htonl(ts.nsec),
+				ts.secPastEpoch, ts.nsec,
 				&scmd,
 				0,
 				drvPadUdpCommTimeout);
@@ -681,10 +684,10 @@ int         bad_version_count = 0;
 
 		rply     = padReplyFind(pkt);
 
-		if ( PADPROTO_VERSION3 != rply->version ) {
+		if ( PADPROTO_VERSION4 != rply->version ) {
 			bad_version_count++;
 			if ( (bad_version_count & 0xff) == 1 ) {
-				errlogPrintf("drvPadUdpCommListener: dropped %u unsupported version %u packets (need %u)\n", bad_version_count, rply->version, PADPROTO_VERSION3);
+				errlogPrintf("drvPadUdpCommListener: dropped %u unsupported version %u packets (need %u)\n", bad_version_count, rply->version, PADPROTO_VERSION4);
 			}
 			continue;	
 		}
@@ -930,7 +933,7 @@ simInit()
 {
 int i;
 	/* Initialize the simulator command */
-	padSimulateCmd.req.version = PADPROTO_VERSION3;
+	padSimulateCmd.req.version = PADPROTO_VERSION4;
 	padSimulateCmd.req.nCmds   = MAX_BPM;
 	padSimulateCmd.req.cmdSize = sizeof(padSimulateCmd.simbpm[0]);
 
@@ -943,16 +946,66 @@ int i;
 	}
 }
 
+static void
+set_pref(unsigned flag, unsigned sup_on, unsigned sup_off, int *pref_p)
+{
+	switch ( ((flag & sup_on) ? 2:0)
+            |((flag & sup_off) ? 1:0) ) {
+		case 0: /* nothing supported -- should never get here */
+			epicsPrintf("ERROR: drvPadUdpComm -- digitizer seems to support neither 32- nor 16-bit data\n");
+			*pref_p = -1;
+			break;
+		case 1: /* only OFF supported */
+			*pref_p = 0;	
+			break;
+		case 2: /* only ON  supported */
+			*pref_p = 1;
+			break;
+		case 3: /* both supported */
+			*pref_p = -1;
+			break;
+	}
+}
+
+static int
+check_pref(int *proposed, int *requested, int dflt, const char *msg)
+{
+	if ( *requested < 0 && (*requested = *proposed) < 0 ) {
+		*requested = dflt;
+		return 0;
+	}
+
+	if ( *proposed < 0 || *proposed == *requested )
+		return 0;
+
+	epicsPrintf("drvPadUdpComm -- FATAL ERROR: invalid configuration '%s' data processing driver requested %i but digitizer only supports %i\n", msg, *requested, *proposed);
+
+	return -1;
+}
+
+void
+drvPadUdpCommPrefsInit(DrvPadUdpCommPrefs p)
+{
+	p->nsamples          = drvPadUdpCommGetNsamplesDefault();
+	p->d32               = -1;
+	p->nsamples_dynamic  =  1;
+	p->nchannels_dynamic =  1;
+	p->col_major         = -1;
+}
+
 static long
 padUdpCommInit(void)
 {
 int            err,i;
-int            isVme;
 epicsTimeStamp ts;
+UdpCommPkt     rpkt;
+PadReply       rply;
+uint8_t        flags_sup_on, flags_sup_off;
+DrvPadUdpCommPrefsRec prefs;
 
-	if ( !drvPadUdpCommPeer ) {
+	if ( !drvPadUdpCommHasSetup ) {
 		epicsPrintf("drvPadUdpComm -- peer not set; call drvPadUdpCommSetup(peer) first\n");
-		return -1;
+		goto bail;
 	}
 
 	/* Check if epicsTimeGetEvent() works; on post 3.14.9 (bundled generalTime) we must
@@ -971,43 +1024,91 @@ epicsTimeStamp ts;
 		epicsPrintf("drvPadUdpComm -- epicsTimeEventGetEvent() failed; this is probably\n"
 		            "                 because evrTime.c has not been patched for bundled generalTime\n"
 		            "                 contact Steph Allison, Kukhee Kim or Till Straumann\n");
-		return -1;
+		goto bail;
 	}
 
 	wavBufInit();
 
-	isVme = ( 0 == strcmp(drvPadUdpCommPeer, "VME") );
-
-	drvPadUdpCommPrefs.nsamples         = drvPadUdpCommGetNsamplesDefault();
-	drvPadUdpCommPrefs.nsamples_dynamic = 1;
-	drvPadUdpCommPrefs.col_major        = isVme;
-
-	if ( drvPadUdpCommCallbacks.get_prefs )
-		drvPadUdpCommCallbacks.get_prefs( &drvPadUdpCommPrefs );
-
-	if ( !drvPadUdpCommPrefs.col_major && isVme ) {
-		epicsPrintf("drvPadUdpComm -- invalid configuration; client driver asks for row-major layout but VME digitizer only supports col-major\n");
-		return -1;
-	}
-
-	if ( ! isVme && INADDR_NONE == drvPadUdpCommPeerAddr ) {
-		epicsPrintf("drvPadUdpComm -- invalid or no peer ID; call drvPadUdpCommSetup(peer) with 'peer' a string in 'dot' notation (or \"VME\")...\n");
-		return -1;
-	}
-
-	if ( isVme ) {
-		if ( ! &drvPadVmeCommIO || !drvPadVmeCommIO ) {
-			epicsPrintf("drvPadUdpComm -- no VME IO methods; is the vmeDigiComm driver linked to your application?\n");
-			return -1;
-		} else {
-			io = *drvPadVmeCommIO;
-		}
-	}
-
 	if ( (drvPadUdpCommSd = io.open(drvPadUdpCommPort-1)) < 0 ) {
 		epicsPrintf("drvPadUdpComm -- unable to create socket: %s\n",
 			strerror(-drvPadUdpCommSd));
-		return -1;
+		goto bail;
+	}
+
+	if ( (err=io.connect(drvPadUdpCommSd, drvPadUdpCommPeerAddr, drvPadUdpCommPort)) ) {
+		epicsPrintf("drvPadUdpComm -- unable to connect socket: %s\n",
+			strerror(-err));
+		if ( -ENOTCONN == err )
+			epicsPrintf("probably a failed ARP lookup!\n");
+		io.close(drvPadUdpCommSd);
+		drvPadUdpCommSd = -1;
+		goto bail;
+	}
+
+	/* Query digitizer driver for supported data formats -- don't care about timestamps */
+	for ( i = 0; i<1 /*MAX_BPM*/; i++ ) {
+		rpkt = 0;
+		err = io.padIoReq(drvPadUdpCommSd, i, PADCMD_SQRY, drvPadUdpCommGetXid(), 0, 0, 0, &rpkt, 200 /*ms*/);
+
+		printf("SQRY for ch[%i]: %i, %p\n", i, err, rpkt);
+		if ( 0 == err && rpkt ) 
+			break;
+		io.free(rpkt);
+	}
+
+	if ( !rpkt ) {
+		epicsPrintf("drvPadUdpComm -- query of digitizer features failed: %s\n", strerror(-err));
+		goto bail;
+	}
+	rply = io.bufptr(rpkt);
+	flags_sup_on  = rply->strm_sqry_sup_on;
+	flags_sup_off = rply->strm_sqry_sup_off;
+	io.free(rpkt);
+
+	drvPadUdpCommPrefsInit( &prefs );
+
+	if ( flags_sup_on == 0 && flags_sup_off == 0 ) {
+		/* likely the digitizer does not (yet) implement the new protocol
+		 * features; take wild guesses...
+		 */
+	} else {
+		/* construct proposed settings based on what the digitizer supports */
+		int le_sup;
+		set_pref(PADCMD_STRM_FLAG_32, flags_sup_on, flags_sup_off, &prefs.d32);
+		set_pref(PADCMD_STRM_FLAG_C1, flags_sup_on, flags_sup_off, &prefs.nchannels_dynamic);
+		set_pref(PADCMD_STRM_FLAG_CM, flags_sup_on, flags_sup_off, &prefs.col_major);
+		set_pref(PADCMD_STRM_FLAG_CM, flags_sup_on, flags_sup_off, &le_sup);
+
+		/* Verify that the digitizer can handle our endianness */
+		if ( le_sup >= 0 ) {
+			/* can't handle both */
+			if ( !! isbe() != ! le_sup ) {
+				epicsPrintf("drvPadUdpComm - FATAL ERROR: digitizer cannot supply samples with our endianness!\n");
+				goto bail;
+			}
+		}
+	}
+
+	drvPadUdpCommPrefs = prefs;
+
+	/* Ask the callbacks for preferences based on our proposal */
+	if ( drvPadUdpCommCallbacks.get_prefs )
+		drvPadUdpCommCallbacks.get_prefs( &drvPadUdpCommPrefs );
+
+	if ( check_pref( &prefs.d32, &drvPadUdpCommPrefs.d32, 0, "D32" ) < 0 ) {
+		goto bail;
+	}
+	if ( check_pref( &prefs.nchannels_dynamic,
+	                 &drvPadUdpCommPrefs.nchannels_dynamic,
+	                 0,
+		             "SINGLE CHANNEL MODE" ) < 0 ) {
+		goto bail;
+	}
+	if ( check_pref( &prefs.col_major,
+	                 &drvPadUdpCommPrefs.col_major,
+	                 1,
+		             "COLUMN-MAJOR LAYOUT" ) < 0 ) {
+		goto bail;
 	}
 
 	strmCmdInit(drvPadUdpCommPrefs.d32, drvPadUdpCommPrefs.col_major);
@@ -1018,17 +1119,6 @@ epicsTimeStamp ts;
 		scanIoInit(&scanlist[i]);
 		scanIoInit(&dScanlist[i]);
 	}
-
-	if ( (err=io.connect(drvPadUdpCommSd, drvPadUdpCommPeerAddr, drvPadUdpCommPort)) ) {
-		epicsPrintf("drvPadUdpComm -- unable to connect socket: %s\n",
-			strerror(-err));
-		if ( -ENOTCONN == err )
-			epicsPrintf("probably a failed ARP lookup!\n");
-		io.close(drvPadUdpCommSd);
-		drvPadUdpCommSd = -1;
-		return -1;
-	}
-
 	epicsThreadCreate(
 			"drvPadUdpCommListener",
 			epicsThreadPriorityMax,
@@ -1049,6 +1139,11 @@ epicsTimeStamp ts;
 		fidTimeInstall_generic();
 
 	return 0;
+
+bail:
+	fflush(stdout);
+	fflush(stderr);
+	abort();
 }
 
 long
@@ -1095,27 +1190,63 @@ static const struct iocshArg args[] = {
 	{
 	"callbacks",
 	iocshArgString
+	},
+	{
+	"io_ops",
+	iocshArgString
 	}
 };
 
 static const struct iocshArg *bloatp[] = {
 	&args[0],
 	&args[1],	
+	&args[2],	
 	0
 };
 
 struct iocshFuncDef drvPadUdpCommSetupDesc = {
 	"drvPadUdpCommSetup",
-	2,
+	3,
 	bloatp
 };
 
-void
-drvPadUdpCommSetup(const char *arg, DrvPadUdpCommCallbacks callbacks)
+static int
+udpCommSetup(const char *arg, uint32_t *peer_ip_p, int *peer_port_p)
 {
 char *col, *str;
 struct in_addr ina;
 
+	if ( !(str=epicsStrDup(arg)) ) {
+		epicsPrintf("udpCommSetup: not enough memory for epicsStrDup\n");
+		return -1;
+	}
+
+	if ( (col = strchr(str, ':')) )
+		*col++=0;
+
+	ina.s_addr = *peer_ip_p = INADDR_NONE;
+
+	if ( hostToIPAddr(str, &ina) ) {
+		epicsPrintf("udpCommSetup: invalid IP address '%s'\n", str);
+	} else {
+		*peer_ip_p = ina.s_addr;
+	}
+	if ( col && 1 != sscanf(col, "%i", peer_port_p) ) {
+		epicsPrintf("drvPadUdpCommSetup: invalid port number:  '%s'\n", col);
+		*peer_port_p = PADPROTO_PORT;
+	}
+
+	if ( 0 == *peer_port_p )
+		*peer_port_p = PADPROTO_PORT;
+
+	free(str);
+
+	return 0;
+}
+
+void
+drvPadUdpCommSetup(const char *arg, DrvPadUdpCommCallbacks callbacks, DrvPadUdpCommIO io_ops)
+{
 	if ( !callbacks ) {
 		epicsPrintf("drvPadUdpCommSetup: need pointer to callback info!\n");
 		return;
@@ -1127,32 +1258,10 @@ struct in_addr ina;
 	 */
 	drvPadUdpCommCallbacks = *callbacks;
 
-	if ( !(str=epicsStrDup(arg)) ) {
-		epicsPrintf("drvPadUdpCommSetup: not enough memory for epicsStrDup\n");
-		return;
-	}
+	if ( io_ops )
+		io = *io_ops;
 
-	if ( (col = strchr(str, ':')) )
-		*col++=0;
-
-	ina.s_addr = drvPadUdpCommPeerAddr = INADDR_NONE;
-
-	if ( strcmp(str,"VME") && hostToIPAddr(str, &ina) ) {
-		epicsPrintf("drvPadUdpCommSetup: invalid IP address '%s'\n",
-			str);
-		free(str);
-	} else {
-		drvPadUdpCommPeerAddr = ina.s_addr;
-		drvPadUdpCommPeer     = str;
-	}
-	if ( col && 1 != sscanf(col, "%i", &drvPadUdpCommPort) ) {
-		epicsPrintf("drvPadUdpCommSetup: invalid port number:  '%s'\n", col);
-		drvPadUdpCommPort = PADPROTO_PORT;
-	}
-
-	if ( 0 == drvPadUdpCommPort )
-		drvPadUdpCommPort = PADPROTO_PORT;
-
+	drvPadUdpCommHasSetup = io.setup ?  ! io.setup(arg, &drvPadUdpCommPeerAddr, &drvPadUdpCommPort) : 1;
 }
 
 const void *drvPadUdpCommRegistryId = (void*)&drvPadUdpCommRegistryId;
@@ -1161,6 +1270,7 @@ void
 drvPadUdpCommSetupFunc(const iocshArgBuf *args)
 {
 void *cbs;
+void *io_ops = 0;
 	if ( !args[0].sval ) {
 		epicsPrintf("usage: drvPadUdpCommSetup(\"peer_ip:port | VME\", callbacks)\n");
 		return;
@@ -1169,8 +1279,14 @@ void *cbs;
 		epicsPrintf("callbacks: '%s' not found; unable to setup\n",args[1].sval);
 		return;
 	}
+	if ( args[2].sval ) {
+		if ( ! (io_ops = registryFind((void*)drvPadUdpCommRegistryId, args[2].sval)) ) {
+			epicsPrintf("io_ops: '%s' not found; unable to setup\n",args[1].sval);
+		}
+		return;
+	}
 
-	drvPadUdpCommSetup(args[0].sval, cbs);
+	drvPadUdpCommSetup(args[0].sval, cbs, io_ops);
 }
 
 static void

@@ -57,6 +57,16 @@ padStreamSimNotimpl(PadSimCommand scmd, uint32_t hostip)
 	return -ENOSYS;
 }
 
+uint32_t
+padStreamQuery(PadRequest req)
+__attribute__((weak, alias("padStreamQueryNotimpl")));
+
+uint32_t
+padStreamQueryNotimpl(PadRequest req)
+{
+	return 0;
+}
+
 
 int
 padProtoHandler(PadRequest req_p, int me, int *killed_p, uint32_t peerip)
@@ -67,7 +77,7 @@ PadCommand 		cmd;
 PadReply   		rply;
 int32_t			err  = 0;
 
-	if ( PADPROTO_VERSION3 != req_p->version ) {
+	if ( PADPROTO_VERSION4 != req_p->version ) {
 		return -1;
 	}
 
@@ -165,6 +175,21 @@ int32_t			err  = 0;
 			}
 #endif
 			break;	
+
+		case PADCMD_SQRY:
+			{
+			uint32_t res;
+				res = padStreamQuery(req_p);
+				((PadReply)req_p)->strm_sqry_sup_on  = (res >>8) & 0xff;
+				((PadReply)req_p)->strm_sqry_sup_off =  res      & 0xff;
+			}
+
+#ifdef DEBUG
+			if ( (padProtoDebug & DEBUG_PROTOHDL) ) {
+				printf("padProtoHandler: SQRY command\n");
+			}
+#endif
+			break;
 
 
 		case PADCMD_KILL:
@@ -279,7 +304,7 @@ int         retry;
 		req          = udpCommBufPtr( p );
 		cmd          = (PadCommand)req->data;
 
-		req->version = PADPROTO_VERSION3;
+		req->version = PADPROTO_VERSION4;
 		req->nCmds   = who < 0 ? PADREQ_BCST : -who;
 
 		req->xid     = htonl(xid);

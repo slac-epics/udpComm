@@ -1,4 +1,4 @@
-/* $Id: padStream.c,v 1.21 2012/05/16 01:39:28 strauman Exp $ */
+/* $Id: padStream.c,v 1.22 2012/05/24 23:08:45 strauman Exp $ */
 
 #include <udpComm.h>
 #include <padProto.h>
@@ -747,4 +747,15 @@ int rval = 0;
 	}
 	UNLOCK();
 	return rval;
+}
+
+uint32_t
+padStreamQuery(PadRequest req)
+{
+PadStrmCommandRec scmd = {0};
+	if ( start_stop_cb ) {
+		scmd.type = PADCMD_SQRY;
+		return start_stop_cb(req, &scmd, cbarg);
+	}
+	return 0;
 }

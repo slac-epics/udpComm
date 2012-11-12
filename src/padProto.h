@@ -1,4 +1,4 @@
-/* $Id: padProto.h,v 1.10 2011/04/30 05:42:50 strauman Exp $ */
+/* $Id: padProto.h,v 1.11 2011/05/02 17:41:28 strauman Exp $ */
 
 #ifndef PADPROTO_DEF_H
 #define PADPROTO_DEF_H
@@ -35,6 +35,7 @@ extern "C" {
 #define	PADCMD_STOP ((int8_t) 4)
 #define PADCMD_KILL ((int8_t)15)
 #define PADCMD_SIM  ((int8_t) 5)        /* generate simulated response     */
+#define PADCMD_SQRY ((int8_t) 6)        /* query supported stream options  */
 
 /* mask off the flag bits */
 #define PADCMD_GET(type)  ((type) & ~(PADCMD_RPLY | PADCMD_QUIET))
@@ -120,8 +121,9 @@ typedef struct PadSimCommandRec_ {
 /* Not used anymore
 #define PADPROTO_VERSION1		0x31
 #define PADPROTO_VERSION2		0x32
- */
 #define PADPROTO_VERSION3		0x33
+ */
+#define PADPROTO_VERSION4		0x34
 
 #define PADREQ_BCST	(-128) /* Address all channels with a single command */
 
@@ -202,6 +204,9 @@ typedef struct PadReplyRec_ {
 /* 'More fragments' flag */
 #define PADRPLY_STRM_CMD_IDX_MF  0x80
 #define PADRPLY_STRM_CMD_IDX_GET(idx) ((idx) & ~PADRPLY_STRM_CMD_IDX_MF)
+
+#define strm_sqry_sup_on  spec[0]
+#define strm_sqry_sup_off spec[1]
 
 /* Handle Protocol Request
  *    'req_p': The request. This may be modified by this routine to form a reply.

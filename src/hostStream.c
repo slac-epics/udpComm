@@ -218,7 +218,7 @@ int nchannels = c1 ? 1 : PADRPLY_STRM_NCHANNELS;
 int len       = nsamples*(d32 ? sizeof(int32_t) : sizeof(int16_t))*nchannels + sizeof(*rply);
 
 	/* Setup Reply */
-	rply->version         = PADPROTO_VERSION3;
+	rply->version         = PADPROTO_VERSION4;
 	rply->type            = PADCMD_STRM | PADCMD_RPLY;
 	rply->chnl            = chnl;
 	rply->nBytes          = htons(len);
@@ -266,6 +266,18 @@ padStreamPet(PadRequest req, uint32_t hostip)
 	/* FIXME should verify that hostip == connected peer's address here...*/
 	dopet(req, rply);
 	return 0;
+}
+
+uint32_t
+padStreamQuery(PadRequest req)
+{
+uint32_t all =   PADCMD_STRM_FLAG_LE
+               | PADCMD_STRM_FLAG_CM
+               | PADCMD_STRM_FLAG_32
+               | PADCMD_STRM_FLAG_C1;
+
+	/* all flags supported in either on- or off state */
+	return (all << 8) | all;
 }
 
 int

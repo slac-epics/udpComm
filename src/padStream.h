@@ -1,6 +1,6 @@
 #ifndef PAD_STREAM_H
 #define PAD_STREAM_H
-/* $Id: padStream.h,v 1.8 2011/04/27 22:18:34 strauman Exp $ */
+/* $Id: padStream.h,v 1.9 2012/05/24 23:07:55 strauman Exp $ */
 
 #include <padProto.h>
 #include <stdint.h>
@@ -22,6 +22,11 @@ extern "C" {
  * is stopped (enable/disable data source).
  * The callback should return 0 on success, nonzero if the
  * stream cannot be started or stopped.
+ *
+ * With protocol PADPROTO_VERSION4 the 'callback' can also be
+ * executed with req->type = PADCMD_SQRY for querying the
+ * modes supported by this stream.
+ * The callback should return the same value as padStreamQuery().
  */
 typedef int (*PadStreamStartStopCB)(PadRequest req, PadStrmCommand scmd, void *uarg);
 
@@ -70,6 +75,24 @@ padStreamTest(int type);
  */
 int
 padStreamSim(PadSimCommand scmd, uint32_t hostip);
+
+/* 
+ * Query the streaming device for supported flags.
+ * This function sets returns two 8-bit bitmasks
+ *   ('on' << 8 ) | 'off'
+ * where 'on' is the set of PADCMD_STRM_FLAG_x settings
+ * which are supported when set and 'off' is the set
+ * of respective flags which are supported when clear.
+ *
+ * E.g., if both, little- and big-endian modes are
+ * supported then PADCMD_STRM_FLAG_LE would be set
+ * in the 'on' and 'off' masks.
+ * 
+ * If single-channel mode is not supported then 
+ * PADCMD_STRM_FLAG_C1 is only set in the 'off' mask.
+ */
+uint32_t
+padStreamQuery(PadRequest req);
 
 typedef struct PadStripSimValRec_ {
 	int32_t	val[PADRPLY_STRM_NCHANNELS];

@@ -246,18 +246,26 @@ void *
 getdata_cb(void *pktBuf, int idx, int nchannels, int nsamples, int d32, int endian_little, int col_major, void *uarg);
 
 The 'start_stop_cb()' is executed whenever the PAD receives a
-PADCMD_STRM or PADCMD_STOP command, respectively. In the former
-case the 'start' argument points to the PadStrmCommandRec that
-contains additional information (flags, layout, etc.) and in
-the latter case (PADCMD_STOP) the 'start' argument is NULL.
+PADCMD_STRM, PADCMD_SQRY or PADCMD_STOP command, respectively.
+In the former cases (STRM/SQRY) the 'start' argument points to the
+PadStrmCommandRec that contains additional information (flags, layout, etc.)
+and in the latter case (PADCMD_STOP) the 'start' argument is NULL.
 
-The 'start_stop_cb()' may perform any actions required by
+It the 'start' argument points to a PADCMD_SQRY command
+then the callback should immediately return a value
+which describes the features supported by the stream,
+i.e., a combination of such features should not be
+rejected by a subsequent execution with PADCMD_STRM 
+requesting supported features.
+
+The 'start_stop_cb(PADCMD_START/PADCMD_STOP)' may
+perform any actions required by
 the application to switch to and from streaming mode.
 
-The 'start_stop_cb()' must return zero if these actions were
-successful. Under any condition that prohibits changing the mode
-as requested this callback must return nonzero in order to
-reject the request.
+The 'start_stop_cb(PADCMD_START/PADCMD_STOP)' must return
+zero if these actions were successful. Under any condition
+that prohibits changing the mode as requested this callback
+must return nonzero in order to reject the request.
 
 In particular, the start_stop_cb() must check the requested
 parameters (nsamples, flags) and reject the start request
@@ -281,6 +289,34 @@ newer versions of the protocol may add more features and a
 request for such features may go undetected by the current
 implementation of start_stop_cb().
 *************************************************************
+
+If start_stop_cb() is executed with start pointing to
+a PADCMD_SQRY command then a bitmask of supported features
+should be returned so that the user may pick a supported
+operation mode before attempting to start a stream.
+The bitmask is constructed as follows:
+
+  ( on_mask << 8 ) | off_mask
+
+where on_mask and off_mask are 8-bit masks. 'on_mask'
+is a bit-set of all streaming flags which are supported
+when set. 'off_mask' is a bit-set of all streaming flags
+which are supported when clear.
+
+E.g., if your stream implements shipping both, little-endian
+and big-endian data then it supports PADCMD_STRM_FLAG_LE
+either set (little-endian) or clear (big-endian).
+It should therefore set PADCMD_STRM_FLAG_LE in both, 
+'on_mask' and 'off_mask'.
+
+If your stream does not implement shipping 32-bit data
+and only column-major layout then
+
+ - on_mask must not contain PADCMD_STRM_FLAG_32
+ - off_mask must contain PADCMD_STRM_FLAG_32
+ - on_mask contain PADCMD_STRM_FLAG_CM
+ - off_mask must not contain PADCMD_STRM_FLAG_CM
+
 
 The 'uarg' parameter passed to the 'start_stop_cb' is an
 arbitrary pointer that is supplied by the user when the
@@ -395,30 +431,55 @@ whether it desires 'processed' vs. 'raw' data.
 int
 my_start_stop_cb(PadRequest req, PadStrmComand scmd, void *uarg)
 {
- if ( scmd ) {
-   /* Start Stream */
+int on_mask, off_mask;
 
-   if ( PADPROTO_VERSION3 != req->version ) {
-     fprintf(stderr,"Unsupported protocol version 0x%02x: (expected 0x%02x)\n", req->version, PADPROTO_VERSION3);
-     return -ENOTSUP;
-   }
+	if ( scmd ) {
+		/* Start or query Stream */
 
-   if ( (scmd->flags & PADCMD_STRM_FLAG_32) ) {
-     /* assume processed mode */
-     if ( (scmd->flags & (PADCMD_STRM_FLAG_CM | PADCMD_STRM_FLAG_C1)) ) {
-       fprintf(stderr,"Neither col-major nor single-channel operation is supported\n");
-       return -ENOTSUP;
-     }
-     /* OK. Could verify that
-      * ntohl(scmd->nsamples) matches what we expect
-      */
-   } else {
-     /* assume raw mode */
-   }
- } else {
-   /* Stop Stream  */
- }
- return 0;
+		if ( req && PADPROTO_VERSION4 != req->version ) {
+			fprintf(stderr,"Unsupported protocol version 0x%02x: (expected 0x%02x)\n", req->version, PADPROTO_VERSION4);
+			return -ENOTSUP;
+		}
+
+		switch ( PADCMD_GET( scmd->type ) ) {
+			default:
+				return -EINVAL;
+
+			case PADCMD_SQRY:
+				/* Query of features: this is state-less (we can't report
+				 * features which are only supported depending on some other
+				 * feature); we report the maximum subset even though some
+				 * combinations may still be rejected (single-channel or
+				 * col-major are OK in raw mode but not in D32 mode) when
+				 * the stream is actually started.
+				 */
+
+				on_mask = PADCMD_STRM_FLAG_LE | PADCMD_STRM_FLAG_D32 | PADCMD_STRM_FLAG_C1 | PADCMD_STRM_FLAG_CM;
+				off_mask = on_mask;
+
+				return (on_mask<<8) | off_mask;
+
+			case PADCMD_STRM:
+
+				if ( (scmd->flags & PADCMD_STRM_FLAG_32) ) {
+					/* assume processed mode */
+					if ( (scmd->flags & (PADCMD_STRM_FLAG_CM | PADCMD_STRM_FLAG_C1)) ) {
+						fprintf(stderr,"Neither col-major nor single-channel operation is supported\n");
+						return -ENOTSUP;
+					}
+					/* OK. Could verify that
+					 * ntohl(scmd->nsamples) matches what we expect
+					 */
+				} else {
+					/* assume raw mode */
+				}
+
+				break;
+		}
+	} else {
+		/* Stop Stream  */
+	}
+	return 0;
 }
 
 Example getdata() callback:

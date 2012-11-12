@@ -1,4 +1,4 @@
-$Id: README,v 1.4 2011/04/20 20:34:50 strauman Exp $
+$Id: README,v 1.5 2011/04/22 19:17:10 strauman Exp $
 
 The 'udpComm' API is very similar to traditional socket programming
 but slightly simplified.
@@ -69,7 +69,8 @@ PACKET RECEPTION
 ----------------
 
 Receive/pend for data (a 'udpCommRecvFrom()' variant is also available);
-NULL result indicates timeout.
+NULL result indicates timeout. A timeout of 0ms instructs to poll,
+a negative timeout blocks indefinitely.
 
   pkt = udpCommRecv( sd, 20000 /*ms*/ );
 

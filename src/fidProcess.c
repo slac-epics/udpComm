@@ -72,7 +72,11 @@ int                        st;
 void
 fidTimeGetBaseline_generic(void *unused)
 {
-	fidProcessGeneric(0, TIMESLOT1_MASK | TIMESLOT4_MASK);
+	fidProcessGeneric(0, 0
+#ifndef TEST_ONLY
+	                     | TIMESLOT1_MASK | TIMESLOT4_MASK
+#endif
+	);
 }
 
 void

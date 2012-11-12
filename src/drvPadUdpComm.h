@@ -45,6 +45,10 @@ typedef struct DrvPadUdpCommPrefsRec_ {
 	int col_major;
 } DrvPadUdpCommPrefsRec, *DrvPadUdpCommPrefs;
 
+/* Initialize a Prefs Rec to default values (everything OK) */
+void
+drvPadUdpCommPrefsInit(DrvPadUdpCommPrefs p);
+
 /* 'cook' callback may return either of these
  * in order to have the raw data posted to 'wavBuf'
  * of 'kind'.

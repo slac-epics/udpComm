@@ -1,6 +1,6 @@
 #ifndef DRV_PAD_UDPCOMM_IO_API_H
 #define DRV_PAD_UDPCOMM_IO_API_H
-/* $Id: drvPadUdpCommIO.h,v 1.1 2010/01/19 02:52:27 strauman Exp $ */
+/* $Id: drvPadUdpCommIO.h,v 1.2 2011/04/20 20:46:44 strauman Exp $ */
 
 /* An ugly driver defining I/O 'methods' for drvPadUdpComm.
  * 
@@ -52,6 +52,7 @@
 #include <udpComm.h>
 
 typedef struct DrvPadUdpCommIORec_ {
+	int                 (*setup)    (const char *arg, uint32_t *peer_ip_p, int *peer_port_p);
 	int                 (*open)     (int port);
 	int                 (*close)    (int fd);
 	int                 (*connect)  (int fd, uint32_t peer_ip, int peer_port);

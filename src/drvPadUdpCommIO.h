@@ -1,6 +1,6 @@
 #ifndef DRV_PAD_UDPCOMM_IO_API_H
 #define DRV_PAD_UDPCOMM_IO_API_H
-/* $Id: drvPadUdpCommIO.h,v 1.2 2011/04/20 20:46:44 strauman Exp $ */
+/* $Id: drvPadUdpCommIO.h,v 1.3 2012/11/12 19:02:31 strauman Exp $ */
 
 /* An ugly driver defining I/O 'methods' for drvPadUdpComm.
  * 
@@ -59,7 +59,10 @@ typedef struct DrvPadUdpCommIORec_ {
 	int                 (*send)     (int fd, void    *buf_p,   int len);
 	UdpCommPkt          (*recv)     (int fd, int timeout_ms);
 	void *              (*bufptr)   (UdpCommPkt);
-	UdpCommPkt          (*alloc)    ();
+	/* some implementations may have an allocator per channel;
+	 * in this case 'alloc' must identify the channel/digitizer...
+	 */
+	UdpCommPkt          (*alloc)    (int fd);
 	void                (*creatref) (UdpCommPkt);
 	void                (*free)     (UdpCommPkt);
 	/* This last one is ugly but does different things

@@ -1,3 +1,7 @@
+20121113 (T.S.)
+ - src/drvPadUdpComm.c, src/drvPadUdpCommIO.h: added 'int fd' 
+   argument to packet allocation function. This allows for supporting
+   'per-channel/per-fd' allocators (as needed by the future sis8300 driver).
 20121112 (T.S.)
  - src/drvPadUdpComm.c: use 'recv' with indefinite timeout and
    use the watchdog task to issue drvPadUdpCommSendStartAll()

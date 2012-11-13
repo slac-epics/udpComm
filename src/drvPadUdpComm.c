@@ -121,6 +121,11 @@ volatile DrvPadUdpCommHWTime drvPadUdpCommPktTimeBaseline[MAX_BPM] = { 0 };
 
 static int udpCommSetup(const char *arg, uint32_t *peer_ip_p, int *peer_port_p);
 
+static UdpCommPkt drvPadUdpCommAllocPacket(int fd)
+{
+	return udpCommAllocPacket();
+}
+
 static DrvPadUdpCommIORec io = {
 	setup:    udpCommSetup,
 	open:     udpCommSocket,
@@ -129,7 +134,7 @@ static DrvPadUdpCommIORec io = {
 	send:     udpCommSend,
 	recv:     udpCommRecv,
 	bufptr:   udpCommBufPtr,
-	alloc:    udpCommAllocPacket,
+	alloc:    drvPadUdpCommAllocPacket,
 	creatref: udpCommRefPacket,
 	free:     udpCommFreePacket,
 	padIoReq: padRequest,

@@ -1091,7 +1091,7 @@ DrvPadUdpCommPrefsRec prefs;
 		set_pref(PADCMD_STRM_FLAG_32, flags_sup_on, flags_sup_off, &prefs.d32);
 		set_pref(PADCMD_STRM_FLAG_C1, flags_sup_on, flags_sup_off, &prefs.nchannels_dynamic);
 		set_pref(PADCMD_STRM_FLAG_CM, flags_sup_on, flags_sup_off, &prefs.col_major);
-		set_pref(PADCMD_STRM_FLAG_CM, flags_sup_on, flags_sup_off, &le_sup);
+		set_pref(PADCMD_STRM_FLAG_LE, flags_sup_on, flags_sup_off, &le_sup);
 
 		/* Verify that the digitizer can handle our endianness */
 		if ( le_sup >= 0 ) {

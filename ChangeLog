@@ -1,3 +1,10 @@
+20121120 (T.S.)
+ - src/drvPadUdpComm.c:
+     o made iocsh string arguments 'persistent' strings.
+     o treat empty string args like NULL strings
+     o fixed typo reported by Sonya
+     o use MAX_BPM (not 1) when scanning for SQRY
+  
 20121113 (T.S.)
  - src/drvPadUdpComm.c, src/drvPadUdpCommIO.h: added 'int fd' 
    argument to packet allocation function. This allows for supporting

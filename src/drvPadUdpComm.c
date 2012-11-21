@@ -1195,7 +1195,7 @@ epicsExportAddress(drvet,drvPadUdpComm);
 static const struct iocshArg args[] = {
 	{
 	"peer <ip:port> | VME",
-	/* iocshArgPersistentString is broken (3.14.8) -
+	/* iocshArgPersistentString is broken (3.14.12) -
 	 * it doesn't check for an empty string before
 	 * duplicating :-(
 	 */
@@ -1203,11 +1203,11 @@ static const struct iocshArg args[] = {
 	},
 	{
 	"callbacks",
-	iocshArgPersistentString
+	iocshArgString
 	},
 	{
 	"io_ops",
-	iocshArgPersistentString
+	iocshArgString
 	}
 };
 

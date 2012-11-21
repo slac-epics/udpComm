@@ -1060,7 +1060,7 @@ DrvPadUdpCommPrefsRec prefs;
 	}
 
 	/* Query digitizer driver for supported data formats -- don't care about timestamps */
-	for ( i = 0; i<1 /*MAX_BPM*/; i++ ) {
+	for ( i = 0; i<MAX_BPM; i++ ) {
 		rpkt = 0;
 		err = io.padIoReq(drvPadUdpCommSd, i, PADCMD_SQRY, drvPadUdpCommGetXid(), 0, 0, 0, &rpkt, 200 /*ms*/);
 
@@ -1203,11 +1203,11 @@ static const struct iocshArg args[] = {
 	},
 	{
 	"callbacks",
-	iocshArgString
+	iocshArgPersistentString
 	},
 	{
 	"io_ops",
-	iocshArgString
+	iocshArgPersistentString
 	}
 };
 
@@ -1293,9 +1293,9 @@ void *io_ops = 0;
 		epicsPrintf("callbacks: '%s' not found; unable to setup\n",args[1].sval);
 		return;
 	}
-	if ( args[2].sval ) {
+	if ( args[2].sval && *args[2].sval ) {
 		if ( ! (io_ops = registryFind((void*)drvPadUdpCommRegistryId, args[2].sval)) ) {
-			epicsPrintf("io_ops: '%s' not found; unable to setup\n",args[1].sval);
+			epicsPrintf("io_ops: '%s' not found; unable to setup\n",args[2].sval);
 		}
 		return;
 	}

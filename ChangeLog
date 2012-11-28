@@ -1,3 +1,27 @@
+20121128 (T.S.)
+ - src/padProtoHost.c: -m now accepts an optional ': <mcifaddr>' suffix
+   so that the interface for incoming multicast traffic can be defined.
+ - src/drvPadUdpComm.c, src/padUdpCommSupport.dbd: made 'drvPadUdpCommDebug'
+   accessible from iocsh.
+ - src/drvPadUdpComm.c: moved consistency checks for stream fragments
+   so that they are not performed on the first fragment of a stream (where
+   they trivially pass) so that non-fragmented streams incur no overhead.
+ - src/drvPadUdpComm.c: keep a copy of the i/o methods in local scope
+   (stack) of the Listener. This is in preparation for supporting multiple
+   listener threads so that each one can have its own 'cookClosure'.
+ - src/drvPadUdpComm.c: BUGFIX - drvPadUdpCommSetupFunc() should only
+   return and do nothing if arguments are wrong (had 'return' outside of
+   compound instead of inside).
+ - src/drvPadUdpComm.h, src/drvPadUdpComm.c, src/hwtime.c, src/Makefile,
+   src/fidProcess.c:
+    o drvPadUdpCommPktTimeBaseline: now set directly from start command
+      (rather than using XID to transport across the channel forth and back).
+      Not an per-channel array anymore but just one number.
+    - modified drvPadUdpCommHWTime() so that ErGetTicks() can be used
+      under the hood. Non-EVR implementation may supply its own version.
+      New drvPadUdpCommHWBaseTime() sets 'fidTimeBaseline' (to zero if EVR
+      is used).
+    - max cook time is now with respect to fidTimeBaseline.
 20121120 (T.S.)
  - src/drvPadUdpComm.c:
      o made iocsh string arguments 'persistent' strings.

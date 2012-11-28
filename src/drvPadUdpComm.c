@@ -83,7 +83,7 @@ uint32_t	roundtripAvg = 0;
 #endif
 
 
-uint32_t	drvPadUdpCommDebug = 0;
+int			drvPadUdpCommDebug = 0;
 
 volatile DrvPadUdpCommHWTime drvPadUdpCommMaxCook = 0;
 
@@ -117,7 +117,7 @@ DrvPadUdpCommCallbacksRec drvPadUdpCommCallbacks = { 0 };
 DrvPadUdpCommPrefsRec     drvPadUdpCommPrefs     = { 0 };
 
 volatile DrvPadUdpCommHWTime drvPadUdpCommHWTimeBaseline [MAX_BPM] = { 0 };
-volatile DrvPadUdpCommHWTime drvPadUdpCommPktTimeBaseline[MAX_BPM] = { 0 };
+volatile DrvPadUdpCommHWTime drvPadUdpCommPktTimeBaseline          = { 0 };
 
 static int udpCommSetup(const char *arg, uint32_t *peer_ip_p, int *peer_port_p);
 
@@ -431,26 +431,38 @@ static long
 padUdpCommReport(int level)
 {
 	epicsPrintf("Udp Communication with PAD\n");
+	if ( level > 0 ) {
+		epicsPrintf("Channels in use mask  0x%08"PRIx32"\n", drvPadUdpCommChannelsInUseMask);
+		epicsPrintf("Max Cook time (ticks) %d\n", (unsigned)drvPadUdpCommMaxCook);
+	}
 	return 0;
 }
 
 uint32_t
 drvPadUdpCommGetXid()
 {
-#if defined(__PPC__) || defined(__i386__)
-	/* using timebase can be useful as a baseline for timing purposes */
-	return drvPadUdpCommHWTime();
-#else
-
-static volatile uint32_t xid = 0;
 uint32_t rval;
+	/* using timebase can be useful as a baseline for timing purposes */
+#if defined(__PPC__) 
+#if defined(__rtems__)
+	/* reading timebase via SPR also works on E500 CPUs */
+	__asm__ volatile("mfspr %0, 268":"=r"(rval));
+#else
+	/* mfspr requires privileged mode */
+	__asm__ volatile("mftb  %0":"=r"(rval));
+#endif
+#elif defined(__i386__)
+	uint32_t hi;
+	__asm__ volatile("rdtsc" : "=a"(rval), "=d"(hi));
+#else
+static volatile uint32_t xid = 0;
 int      key;
 
 	key = epicsInterruptLock();
 	rval = xid++;
 	epicsInterruptUnlock(key);
-	return rval;
 #endif
+	return rval;
 }
 
 int
@@ -473,6 +485,8 @@ epicsTimeStamp    ts;
 	if ( epicsTimeGetEvent(&ts, TS1_OR_4_TIME) )
 		epicsTimeGetCurrent(&ts);
 	
+	drvPadUdpCommPktTimeBaseline = drvPadUdpCommHWTime();
+
 	return io.padIoReq(
 				drvPadUdpCommSd,
 				channel,
@@ -533,19 +547,6 @@ uint32_t oxid;
 	}
 
 	if ( (pb = wbStaged[chan][kind]) ) {
-		if ( pb->type != ((rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16) ) {
-			epicsPrintf("drvPadUdpCommPostRaw: inconsistent type (%u), dropping\n", pb->type);
-			goto bail;
-		}
-		if ( pb->m    != PADRPLY_STRM_CHANNELS_IN_STRM(rply) ) {
-			epicsPrintf("drvPadUdpCommPostRaw: inconsistent m-rows, dropping\n");
-			goto bail;
-		}
-		if ( pb->segs.n != PADRPLY_STRM_NSAMPLES( rply ) / pb->segs.m ) {
-			epicsPrintf("drvPadUdpCommPostRaw: inconsistent segment size, dropping\n");
-			goto bail;
-		}
-
 		oxid = ((PadReply)((uintptr_t)pb->segs.data[pb->segs.nsegs-1] - (uintptr_t)((PadReply)0)->data))->xid;
 		if ( rply->xid != oxid ) {
 			/* fragment already part of a new stream packet */
@@ -554,6 +555,19 @@ uint32_t oxid;
 
 			if ( ( drvPadUdpCommDebug & 2 ) ) {
 				errlogPrintf("postRaw[%i][%i]: XID overrun, dropping (old: 0x%08"PRIx32", new: 0x%08"PRIx32"\n", chan, kind, rply->xid, oxid);
+			}
+		} else {
+			if ( pb->type != ((rply->strm_cmd_flags & PADCMD_STRM_FLAG_32) ? WavBufInt32 : WavBufInt16) ) {
+				epicsPrintf("drvPadUdpCommPostRaw: inconsistent type (%u), dropping\n", pb->type);
+				goto bail;
+			}
+			if ( pb->m    != PADRPLY_STRM_CHANNELS_IN_STRM(rply) ) {
+				epicsPrintf("drvPadUdpCommPostRaw: inconsistent m-rows, dropping\n");
+				goto bail;
+			}
+			if ( pb->segs.n != PADRPLY_STRM_NSAMPLES( rply ) / pb->segs.m ) {
+				epicsPrintf("drvPadUdpCommPostRaw: inconsistent segment size, dropping\n");
+				goto bail;
 			}
 		}
 	}
@@ -661,12 +675,17 @@ int         cook_stat;
 int         key;
 int         posted;
 epicsTimeStamp         now;
-DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
+/* Keep a copy of callbacksRec which is task-specific. If the 'init' callback
+ * modifies/sets 'cookClosure' then that field is maintained per task.
+ * We do this because we eventually would like to support multiple listeners
+ * on multi-core CPUs.
+ */
+DrvPadUdpCommCallbacksRec cb = drvPadUdpCommCallbacks;
 DrvPadUdpCommHWTime    tDiff;
 int         bad_version_count = 0;
 
-	if ( cb->init )
-		cb->init(cb);
+	if ( cb.init )
+		cb.init(&cb);
 
 	/* Open a socket for incoming streamed data */
 
@@ -726,7 +745,6 @@ int         bad_version_count = 0;
 		}
 
 		drvPadUdpCommHWTimeBaseline[chan]  = tDiff;
-		drvPadUdpCommPktTimeBaseline[chan] = ntohl(rply->xid);
 
 		/* Layout (column-major or row-major) */
 		layout_cm = PADRPLY_STRM_IS_CM(rply);
@@ -761,8 +779,8 @@ int         bad_version_count = 0;
 				ntohl(rply->xid));
 		}
 
-		if ( cb->cook ) {
-			cook_stat = cb->cook(rply, nsamples, layout_cm, kind, cb->cookClosure);
+		if ( cb.cook ) {
+			cook_stat = cb.cook(rply, nsamples, layout_cm, kind, cb.cookClosure);
 		} else {
 			cook_stat = -1;
 		}
@@ -818,7 +836,7 @@ int         bad_version_count = 0;
 				scanIoRequest(dScanlist[chan]);
 			}
 		}
-		tDiff   = drvPadUdpCommHWTime() - tDiff;
+		tDiff   = drvPadUdpCommHWTime() - fidTimeBaseline;
 
 		if ( tDiff > drvPadUdpCommMaxCook )
 			drvPadUdpCommMaxCook = tDiff;
@@ -1063,8 +1081,6 @@ DrvPadUdpCommPrefsRec prefs;
 	for ( i = 0; i<MAX_BPM; i++ ) {
 		rpkt = 0;
 		err = io.padIoReq(drvPadUdpCommSd, i, PADCMD_SQRY, drvPadUdpCommGetXid(), 0, 0, 0, &rpkt, 200 /*ms*/);
-
-		printf("SQRY for ch[%i]: %i, %p\n", i, err, rpkt);
 		if ( 0 == err && rpkt ) 
 			break;
 		io.free(rpkt);
@@ -1285,6 +1301,7 @@ drvPadUdpCommSetupFunc(const iocshArgBuf *args)
 {
 void *cbs;
 void *io_ops = 0;
+
 	if ( !args[0].sval ) {
 		epicsPrintf("usage: drvPadUdpCommSetup(\"peer_ip:port | VME\", callbacks)\n");
 		return;
@@ -1296,8 +1313,8 @@ void *io_ops = 0;
 	if ( args[2].sval && *args[2].sval ) {
 		if ( ! (io_ops = registryFind((void*)drvPadUdpCommRegistryId, args[2].sval)) ) {
 			epicsPrintf("io_ops: '%s' not found; unable to setup\n",args[2].sval);
+			return;
 		}
-		return;
 	}
 
 	drvPadUdpCommSetup(args[0].sval, cbs, io_ops);
@@ -1309,3 +1326,4 @@ drvPadUdpCommRegistrar(void)
 	iocshRegister(&drvPadUdpCommSetupDesc, drvPadUdpCommSetupFunc);
 }
 epicsExportRegistrar(drvPadUdpCommRegistrar);
+epicsExportAddress(int, drvPadUdpCommDebug);

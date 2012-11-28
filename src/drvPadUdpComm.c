@@ -1208,7 +1208,7 @@ static struct {
 };
 epicsExportAddress(drvet,drvPadUdpComm);
 
-static const struct iocshArg args[] = {
+static const struct iocshArg setup_args[] = {
 	{
 	"peer <ip:port> | VME",
 	/* iocshArgPersistentString is broken (3.14.12) -
@@ -1227,17 +1227,16 @@ static const struct iocshArg args[] = {
 	}
 };
 
-static const struct iocshArg *bloatp[] = {
-	&args[0],
-	&args[1],	
-	&args[2],	
-	0
+static const struct iocshArg *setup_bloatp[] = {
+	&setup_args[0],
+	&setup_args[1],	
+	&setup_args[2],	
 };
 
-struct iocshFuncDef drvPadUdpCommSetupDesc = {
+static const struct iocshFuncDef drvPadUdpCommSetupDesc = {
 	"drvPadUdpCommSetup",
-	3,
-	bloatp
+	sizeof(setup_bloatp)/sizeof(setup_bloatp[0]),
+	setup_bloatp
 };
 
 static int
@@ -1320,10 +1319,43 @@ void *io_ops = 0;
 	drvPadUdpCommSetup(args[0].sval, cbs, io_ops);
 }
 
+
+DrvPadUdpCommHWTime
+drvPadUdpCommMaxCookReset(int doit)
+{
+DrvPadUdpCommHWTime old = drvPadUdpCommMaxCook;
+	if ( doit )
+		drvPadUdpCommMaxCook = 0;
+	return old;
+}
+
+static const struct iocshArg mctr_args[] = {
+	{
+	"do_reset_if_nonzero",
+	iocshArgInt
+	},
+};
+
+static const struct iocshArg *mctr_bloatp[] = {
+	&mctr_args[0],
+};
+
+static const iocshFuncDef mctrDesc = {
+	"drvPadUdpCommMaxCookReset",
+	sizeof(mctr_bloatp)/sizeof(mctr_bloatp[0]),
+	mctr_bloatp
+};
+
+static void mctrFunc(const iocshArgBuf *args)
+{
+	epicsPrintf("%d\n", (unsigned)drvPadUdpCommMaxCookReset(args[0].ival));
+}
+
 static void
 drvPadUdpCommRegistrar(void)
 {
 	iocshRegister(&drvPadUdpCommSetupDesc, drvPadUdpCommSetupFunc);
+	iocshRegister(&mctrDesc, mctrFunc);
 }
 epicsExportRegistrar(drvPadUdpCommRegistrar);
 epicsExportAddress(int, drvPadUdpCommDebug);

@@ -1,4 +1,6 @@
 20121128 (T.S.)
+ - src/drvPadUdpComm.c: added iocsh function 'drvPadUdpCommMaxCookReset()'
+   for reading and resetting the 'max cook' statistics.
  - src/padProtoHost.c: -m now accepts an optional ': <mcifaddr>' suffix
    so that the interface for incoming multicast traffic can be defined.
  - src/drvPadUdpComm.c, src/padUdpCommSupport.dbd: made 'drvPadUdpCommDebug'

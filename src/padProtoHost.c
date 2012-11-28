@@ -1,4 +1,4 @@
-/* $Id: padProtoHost.c,v 1.9 2011/04/27 22:18:32 strauman Exp $ */
+/* $Id: padProtoHost.c,v 1.10 2011/05/02 17:41:28 strauman Exp $ */
 
 
 /* Wrapper program to send padProto requests */
@@ -279,6 +279,36 @@ void              *mem = 0;
 	}
 }
 
+
+static uint32_t
+str2ina(const char *a_s)
+{
+struct addrinfo *res = 0, *p;
+int              err;
+uint32_t        rval = 0;
+
+	if ( ! a_s )
+		return 0;
+
+	if ( (err = getaddrinfo(a_s, 0, 0, &res)) ) {
+		fprintf(stderr,"Unable to lookup '%s': %s\n", a_s, gai_strerror(err));
+		if ( res )
+			freeaddrinfo(res);
+	} else {
+		for ( p = res; p; p = p->ai_next ) {
+			if ( AF_INET == p->ai_family ) {
+				rval = ((struct sockaddr_in*)p->ai_addr)->sin_addr.s_addr;
+				break;
+			}
+		}
+		freeaddrinfo(res);
+		if ( ! rval ) {
+			fprintf(stderr,"Unable to find '%s': ???\n", a_s);
+		}
+	}
+	return rval;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -308,8 +338,9 @@ int               pgFst     = 0;
 int               pgLst     = -1;
 #endif
 uint32_t          mcaddr    = 0;
-const char *      mcgrp     = 0;
-int               err;
+uint32_t          mcif      = 0;
+char *            mcgrp     = 0;
+char *            mcifa     = 0;
 
 	while ( (ch = getopt(argc, argv, "1:bvcehLl:n:C:s:d:S:t:P:p:m:")) > 0 ) {
 		switch (ch) {
@@ -417,7 +448,7 @@ int               err;
 			break;
 
 			case 'm':
-				mcgrp = optarg;
+				mcgrp = strdup( optarg );
 			break;
 		}
 	}
@@ -442,27 +473,16 @@ int               err;
 
 	if ( srvrMode ) {
 		extern int padProtoDebug;
-		struct addrinfo *res = 0, *p;
 
 		if ( mcgrp ) {
-			if ( (err = getaddrinfo(mcgrp, 0, 0, &res)) ) {
-				fprintf(stderr,"Unable to lookup '%s': %s\n", mcgrp, gai_strerror(err));
-				if ( res )
-					freeaddrinfo(res);
-				exit(1);	
-			} else {
-				for ( p = res; p; p = p->ai_next ) {
-					if ( AF_INET == p->ai_family ) {
-						mcaddr = ((struct sockaddr_in*)p->ai_addr)->sin_addr.s_addr;
-						break;
-					}
-				}
-				freeaddrinfo(res);
-				if ( ! mcaddr ) {
-					fprintf(stderr,"Unable to find '%s': ???\n", mcgrp);
-					exit(1);
-				}
+			if ( (mcifa = strchr( mcgrp, ':' )) ) {
+				*mcifa++ = 0;
+				if ( 0 == (mcif = str2ina( mcifa )) )
+					exit( 1 );
+				udpCommSetIfMcastInp( mcif );
 			}
+			if ( 0 == (mcaddr = str2ina( mcgrp )) )
+				exit( 1 );
 		}
 
 		padProtoDebug = dbg;
@@ -512,5 +532,7 @@ int               err;
 	}
 
 	udpCommClose(sd);
+	if ( mcgrp )
+		free( mcgrp );
 	return 0;
 }

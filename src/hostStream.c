@@ -293,7 +293,6 @@ int      msk,chno;
 int      sz;
 
 	sz = nsamples * (c1 ? 1 : PADRPLY_STRM_NCHANNELS) * (d32 ? 4 : 2 );
-printf("SZ is %u\n", sz);
 
 	if ( sz > 1440 )
 		return -EINVAL;

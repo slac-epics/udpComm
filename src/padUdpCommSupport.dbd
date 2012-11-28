@@ -1,3 +1,4 @@
 device(waveform,VME_IO, devWfRawSig, "WavBuf")
 driver(drvPadUdpComm)
 registrar(drvPadUdpCommRegistrar)
+variable(drvPadUdpCommDebug)

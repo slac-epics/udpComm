@@ -282,39 +282,20 @@ extern const void *drvPadUdpCommRegistryId;
 
 typedef uint32_t DrvPadUdpCommHWTime;
 
-static __inline__ DrvPadUdpCommHWTime
-drvPadUdpCommHWTime()
-{
-DrvPadUdpCommHWTime t;
-#if defined(__rtems__) 
-#if defined(__PPC__)
-#if 0
-	/* new header under rtems 4.10 :=( */
-	CPU_Get_timebase_low(t);
-#else
-	/* reading timebase via SPR also works on E500 CPUs */
-	__asm__ volatile("mfspr %0, 268":"=r"(t));
-#endif
-#elif defined(__i386__)
-	uint32_t hi;
-	__asm__ volatile("rdtsc" : "=a"(t), "=d"(hi));
-#else
-	t = 0;
-#endif
-#else
-	t = 0;
-#endif
-	return t;
-}
+DrvPadUdpCommHWTime
+drvPadUdpCommHWTime();
+
+DrvPadUdpCommHWTime
+drvPadUdpCommHWBaseTime();
 
 extern volatile DrvPadUdpCommHWTime drvPadUdpCommHWTimeBaseline[MAX_BPM];
 /* drvPadUdpComm uses the timebase counter value (PPC, i386) for a
  * 'transaction-ID'. Thus, a time baseline can be established when
- * the last 'START' command was sent. 
+ * the last 'START all' command was sent. 
  * Usually, we send a START command at every fiducial so that we
  * can measure stuff with respect to 'fiducial'-time.
  */
-extern volatile DrvPadUdpCommHWTime drvPadUdpCommPktTimeBaseline[MAX_BPM];
+extern volatile DrvPadUdpCommHWTime drvPadUdpCommPktTimeBaseline;
 
 #ifdef __cplusplus
 }

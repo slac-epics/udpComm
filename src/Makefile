@@ -51,7 +51,7 @@ DBD += padStreamTestClnt.dbd
 # The following are compiled and added to the Support libraries
 padSupport_SRCS += padProto.c
 
-padUdpCommSupport_SRCS += drvPadUdpComm.c fidProcess.c wavBuf.c devWfRawSig.c 
+padUdpCommSupport_SRCS += drvPadUdpComm.c fidProcess.c wavBuf.c devWfRawSig.c hwtime.c
 
 padSupport_SRCS_RTEMS-uC5282 = padStream.c bpmsim.c drvPadAdcStream.c
 

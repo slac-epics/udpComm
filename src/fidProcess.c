@@ -54,7 +54,7 @@ int                        st;
 
 	if ( (time_slot_mask & modifier_a[E_MOD2]) ) {
 		/* This is it! */
-		fidTimeBaseline = drvPadUdpCommHWTime();
+		fidTimeBaseline = drvPadUdpCommHWBaseTime();
 
 		fidHeartbeat++;
 

@@ -1,6 +1,6 @@
 #ifndef  WAVBUF_H
 #define  WAVBUF_H
-/* $Id: wavBuf.h,v 1.2 2010/04/07 19:30:07 strauman Exp $ */
+/* $Id: wavBuf.h,v 1.3 2011/04/27 22:18:37 strauman Exp $ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,6 +84,11 @@ wavBufFreeHdr(WavBuf buf);
 void
 wavBufFree(WavBuf buf);
 
+/*
+ * Post wavbuf; it is no longer owned by the
+ * caller (no matter whether the call succeeds
+ * or fails).
+ */
 int
 wavBufPost(unsigned slot, int kind, WavBuf b);
 

@@ -546,6 +546,7 @@ uint32_t oxid;
 		goto bail;
 	}
 
+	/* FIXME: If we have multiple listener threads then wbStaged should be protected */
 	if ( (pb = wbStaged[chan][kind]) ) {
 		oxid = ((PadReply)((uintptr_t)pb->segs.data[pb->segs.nsegs-1] - (uintptr_t)((PadReply)0)->data))->xid;
 		if ( rply->xid != oxid ) {
@@ -636,9 +637,6 @@ uint32_t oxid;
 		/* send buffer for waveforms to pick up */
 		if ( 0 == wavBufPost(chan, kind, pb) ) {
 			rval = 0;
-		} else {
-			/* This releases the packet, too */
-			wavBufFree(pb);
 		}
 		pb = 0;
 	}
@@ -804,11 +802,9 @@ int         bad_version_count = 0;
 					cook_stat = 0;
 					/* fall thru */
 				case PAD_UDPCOMM_COOK_STAT_DEBUG_FLG_NOSCAN:
+					io.creatref( pkt );
 					if (0 == drvPadUdpCommPostRaw( pkt, new_kind )) {
 						posted++;
-						io.creatref( pkt );
-					} else {
-						pkt = 0;
 					}
 					/* fall thru */
 				default:

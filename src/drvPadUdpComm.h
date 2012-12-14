@@ -77,7 +77,7 @@ drvPadUdpCommPrefsInit(DrvPadUdpCommPrefs p);
 /* Do not set 'data received' flag, do not request scanlist to be
  * processed and do not post raw data
  */
-#define PAD_UDPCOMM_COOK_STAT_NOSCAN_NOPOST -1
+#define PAD_UDPCOMM_COOK_STAT_NOSCAN_NOPOST (-1)
 
 typedef struct DrvPadUdpCommCallbacksRec_ {
 	/* 'init' is executed from the UDP comm listener task which

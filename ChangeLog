@@ -1,3 +1,9 @@
+20121214 (T.S.)
+ - src/drvPadUdpComm.c, src/wavBuf.h, src/wavBuf.c: document semantics
+   of 'wavBufPost()': buffer is *always* taken over by this call.
+   drvPadUdpComm must not wavBufFree() if wavBufPost() fails.
+ - src/drvPadUdpComm.c: BUGFIX: must increase packet reference count
+   *before* calling drvPadUdpCommPostRaw.
 20121128 (T.S.)
  - src/drvPadUdpComm.c: added iocsh function 'drvPadUdpCommMaxCookReset()'
    for reading and resetting the 'max cook' statistics.

@@ -1,3 +1,6 @@
+20130112 (T.S.)
+ - Release 2.4 cut
+Changes since Release 2.3
 20121214 (T.S.)
  - src/drvPadUdpComm.c, src/wavBuf.h, src/wavBuf.c: document semantics
    of 'wavBufPost()': buffer is *always* taken over by this call.
@@ -78,7 +81,7 @@
    generic routines supporting the PAD digitizer into separate
    'drvPadAdcStream' module (can be used by multiple apps
    employing PADs).
-
+Changes since Release 2.2
 20120524 (T.S.)
  - BUGFIX: src/drvPadAdcStream.c - when reading the FIFOS the first
    couple of samples must be skipped as they generate initial

@@ -1,3 +1,29 @@
+udpComm-R2-4-0 (2013/01/12, T.S):
+ - BUGFIX: must increase packet reference count
+   *before* calling drvPadUdpCommPostRaw.
+ - Added iocsh function 'drvPadUdpCommMaxCookReset()'
+   for reading and resetting the 'max cook' statistics.
+ - padProtoHost: -m now accepts an optional ': <mcifaddr>' suffix
+   so that the interface for incoming multicast traffic can be defined.
+ - made 'drvPadUdpCommDebug' accessible from iocsh.
+ - BUGFIX - drvPadUdpCommSetupFunc() should only return and do nothing if
+   arguments are wrong.
+ - modified drvPadUdpCommHWTime() so that ErGetTicks() can be used
+   under the hood. Non-EVR implementation may supply its own version.
+ - udpCommBSD FIX: udpCommRecv timeout < 0 indicates wait forever;
+   BSD implementation didn't implement that correctly.
+ - PADPROTO_VERSION4 adds a 'feature query' command which allows
+   the client to find the stream formats supported by the server.
+ - added a new 'setup' callback which is used to negotiate features
+   requested by the client and features supported by the server.
+   Server features are determined using the new 'stream query'
+   protocol command provided by PADPROTO_VERSION4.
+   drvPadUdpCommSetup() does not determine the IO methods based
+   on the name ("VME" string vs. IP address) anymore but requires
+   a new, third argument which passes/defines the IO methods.
+   By default, udpComm is used.
+ - BUGFIX: timeout parameters are passed to padRequest in
+   host-byte order.
 udpComm-R2-3-5:
                - Build against event module: event-R3-2-2-br_generaltime-2-7
 udpComm-R2-3-4:

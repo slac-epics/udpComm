@@ -1,3 +1,6 @@
+udpComm-R2-4-0-BR-1-0: (2013/02/13, K. Kim)
+  - Build against event-R3-2-2-br_generaltime-2-8
+
 udpComm-R2-4-0-BR: (2013/02/13, K. Kim)
   - Branch out from HEAD of udpComm-R2-4-0
 

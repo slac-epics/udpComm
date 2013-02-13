@@ -1,3 +1,6 @@
+udpComm-R2-4-0-BR: (2013/02/13, K. Kim)
+  - Branch out from HEAD of udpComm-R2-4-0
+
 udpComm-R2-4-0 (2013/01/12, T.S):
  - BUGFIX: must increase packet reference count
    *before* calling drvPadUdpCommPostRaw.

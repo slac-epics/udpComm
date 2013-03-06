@@ -1,3 +1,6 @@
+udpComm-R2-4-1: 2013/03/05, khkim
+ - Build against new event module: event-R3-2-2-br_generaltime-3-0
+
 udpComm-R2-4-0 (2013/01/12, T.S):
  - BUGFIX: must increase packet reference count
    *before* calling drvPadUdpCommPostRaw.

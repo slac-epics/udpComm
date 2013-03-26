@@ -1,3 +1,6 @@
+udpComm-R2-4-2: 2013/03/26, khkim
+ - Build against event-R3-2-2-br_generaltime-4-0
+
 udpComm-R2-4-1: 2013/03/05, khkim
  - Build against new event module: event-R3-2-2-br_generaltime-3-0
 

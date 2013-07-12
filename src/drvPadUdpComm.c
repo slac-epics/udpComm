@@ -85,6 +85,8 @@ uint32_t	roundtripAvg = 0;
 
 int			drvPadUdpCommDebug = 0;
 
+int         drvPadUdpCommRetryQuery = 3;
+
 volatile DrvPadUdpCommHWTime drvPadUdpCommMaxCook = 0;
 
 #if MAX_BPM > 31
@@ -975,12 +977,12 @@ int i;
 }
 
 static void
-set_pref(unsigned flag, unsigned sup_on, unsigned sup_off, int *pref_p)
+set_pref(unsigned flag, unsigned sup_on, unsigned sup_off, int *pref_p, const char *msg)
 {
 	switch ( ((flag & sup_on) ? 2:0)
             |((flag & sup_off) ? 1:0) ) {
 		case 0: /* nothing supported -- should never get here */
-			epicsPrintf("ERROR: drvPadUdpComm -- digitizer seems to support neither 32- nor 16-bit data\n");
+			epicsPrintf("ERROR: drvPadUdpComm -- digitizer seems to support option '%s' neither on nor off\n", msg);
 			*pref_p = -1;
 			break;
 		case 1: /* only OFF supported */
@@ -1024,7 +1026,7 @@ drvPadUdpCommPrefsInit(DrvPadUdpCommPrefs p)
 static long
 padUdpCommInit(void)
 {
-int            err,i;
+int            err,i,retry;
 epicsTimeStamp ts;
 UdpCommPkt     rpkt;
 PadReply       rply;
@@ -1073,23 +1075,34 @@ DrvPadUdpCommPrefsRec prefs;
 		goto bail;
 	}
 
-	/* Query digitizer driver for supported data formats -- don't care about timestamps */
-	for ( i = 0; i<MAX_BPM; i++ ) {
-		rpkt = 0;
-		err = io.padIoReq(drvPadUdpCommSd, i, PADCMD_SQRY, drvPadUdpCommGetXid(), 0, 0, 0, &rpkt, 200 /*ms*/);
-		if ( 0 == err && rpkt ) 
-			break;
-		io.free(rpkt);
+	for ( retry=0; retry <= drvPadUdpCommRetryQuery; retry++ ) {
+		if ( retry ) {
+			fprintf(stderr,"No digitizer replied to feature query;\n");
+			fprintf(stderr,"Waiting 30s (%i of %i) for any digitizer to come on-line...\n", retry, drvPadUdpCommRetryQuery);
+			sleep( 30 );
+		}
+
+		/* Query digitizer driver for supported data formats -- don't care about timestamps */
+		for ( i = 0; i<MAX_BPM; i++ ) {
+			rpkt = 0;
+			err = io.padIoReq(drvPadUdpCommSd, i, PADCMD_SQRY, drvPadUdpCommGetXid(), 0, 0, 0, &rpkt, 200 /*ms*/);
+			if ( 0 == err && rpkt )
+				goto got_reply;
+			io.free(rpkt);
+		}
+
 	}
 
-	if ( !rpkt ) {
+got_reply:
+	if ( rpkt ) {
+		rply = io.bufptr(rpkt);
+		flags_sup_on  = rply->strm_sqry_sup_on;
+		flags_sup_off = rply->strm_sqry_sup_off;
+		io.free(rpkt);
+	} else {
 		epicsPrintf("drvPadUdpComm -- query of digitizer features failed: %s\n", strerror(-err));
-		goto bail;
+		flags_sup_on = flags_sup_off = 0;
 	}
-	rply = io.bufptr(rpkt);
-	flags_sup_on  = rply->strm_sqry_sup_on;
-	flags_sup_off = rply->strm_sqry_sup_off;
-	io.free(rpkt);
 
 	drvPadUdpCommPrefsInit( &prefs );
 
@@ -1099,11 +1112,11 @@ DrvPadUdpCommPrefsRec prefs;
 		 */
 	} else {
 		/* construct proposed settings based on what the digitizer supports */
-		int le_sup;
-		set_pref(PADCMD_STRM_FLAG_32, flags_sup_on, flags_sup_off, &prefs.d32);
-		set_pref(PADCMD_STRM_FLAG_C1, flags_sup_on, flags_sup_off, &prefs.nchannels_dynamic);
-		set_pref(PADCMD_STRM_FLAG_CM, flags_sup_on, flags_sup_off, &prefs.col_major);
-		set_pref(PADCMD_STRM_FLAG_LE, flags_sup_on, flags_sup_off, &le_sup);
+		int le_sup = isbe(); /* init so the test below fails */
+		set_pref(PADCMD_STRM_FLAG_32, flags_sup_on, flags_sup_off, &prefs.d32, "D32");
+		set_pref(PADCMD_STRM_FLAG_C1, flags_sup_on, flags_sup_off, &prefs.nchannels_dynamic, "C1");
+		set_pref(PADCMD_STRM_FLAG_CM, flags_sup_on, flags_sup_off, &prefs.col_major, "CM");
+		set_pref(PADCMD_STRM_FLAG_LE, flags_sup_on, flags_sup_off, &le_sup, "LE");
 
 		/* Verify that the digitizer can handle our endianness */
 		if ( le_sup >= 0 ) {
@@ -1170,6 +1183,7 @@ bail:
 	fflush(stdout);
 	fflush(stderr);
 	abort();
+	return -1;
 }
 
 long

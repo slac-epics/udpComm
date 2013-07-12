@@ -1,3 +1,7 @@
+20130712 (T.S.)
+ - src/drvPadUdpComm.c: Made feature query (SQRY) more robust - instead
+   of aborting if no digitizer replies delay for 30s and retry (a few times).
+   If there is still no answer then make a wild guess.
 20130112 (T.S.)
  - Release 2.4 cut
 Changes since Release 2.3

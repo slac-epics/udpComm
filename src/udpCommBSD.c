@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.7 2011/04/20 20:46:44 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.8 2012/11/12 18:44:16 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -193,7 +193,7 @@ socklen_t          len;
 		if ( ppeerip )
 			*ppeerip = sa->sin_addr.s_addr;
 		if ( ppeerport )
-			*ppeerport = ntohs(sa->sin_addr.s_addr);
+			*ppeerport = ntohs(sa->sin_port);
 	}
 	p->rx_sd = sd;
 	return p;

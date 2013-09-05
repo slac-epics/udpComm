@@ -1,3 +1,6 @@
+20130905 (T.S.)
+ - BUGFIX -- src/udpCommBSD.c: udpCommRecvFrom() returned IP address instead
+   of port in *ppeerport.
 20130712 (T.S.)
  - src/drvPadUdpComm.c: Made feature query (SQRY) more robust - instead
    of aborting if no digitizer replies delay for 30s and retry (a few times).

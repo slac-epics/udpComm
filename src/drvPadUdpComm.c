@@ -1051,10 +1051,9 @@ DrvPadUdpCommPrefsRec prefs;
 #endif
 
 	if ( epicsTimeGetEvent(&ts, TS1_OR_4_TIME) ) {
-		epicsPrintf("drvPadUdpComm -- epicsTimeEventGetEvent() failed; this is probably\n"
+		epicsPrintf("drvPadUdpComm -- WARNING: epicsTimeGetEvent() failed; this is probably\n"
 		            "                 because evrTime.c has not been patched for bundled generalTime\n"
 		            "                 contact Steph Allison, Kukhee Kim or Till Straumann\n");
-		goto bail;
 	}
 
 	wavBufInit();

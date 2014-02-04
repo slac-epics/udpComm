@@ -1,3 +1,7 @@
+20140204 (S.H.)
+ - src/drvPadUdpComm.c: if epicsTimeGetEvent fails, simply issue warning
+   instead of aborting. This change is to support users that will not have
+   an event time provider which can handle epicsTimeEventBestTime (SPEAR)
 20130905 (T.S.)
  - BUGFIX -- src/udpCommBSD.c: udpCommRecvFrom() returned IP address instead
    of port in *ppeerport.

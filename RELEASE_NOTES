@@ -1,3 +1,7 @@
+
+udpComm-R2-5-5: 2014/02/28, lpiccoli 
+- Update event module - event-R4-1-0
+
 udpComm-R2-5-4: 2014/02/04, sonya
 - src/drvPadUdpComm.c: relax restrictions on event time provider
   to support SPEAR BPMs  

@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.8 2012/11/12 18:44:16 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.9 2013/09/05 20:32:57 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -122,7 +122,7 @@ int                err, yes;
 	if ( sd >= OPEN_MAX ) {
 		fprintf(stderr,"INTERNAL ERROR sd > OPEN_MAX\n");
 		close(sd);
-		return -1;
+		return -ENFILE;
 	}
 
 	/* using sdaux should be thread-safe (udpCommClose doesn't

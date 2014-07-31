@@ -1,4 +1,4 @@
-/* $Id: udpComm.h,v 1.5 2010/04/16 22:22:37 strauman Exp $ */
+/* $Id: udpComm.h,v 1.6 2011/04/20 20:46:44 strauman Exp $ */
 #ifndef UDPCOMM_LAYER_H
 #define UDPCOMM_LAYER_H
 
@@ -24,11 +24,23 @@ extern "C" {
 typedef void * UdpCommPkt;
 #endif
 
-/* Create */
+/* Most routines defined in this interface return a negative
+ * error status ('NEGERR') on error whereas a zero or positive
+ * return value signals success.
+ * The (absolute value of a) negative error code is a standard
+ * 'errno' code and may be converted into a string by e.g.,
+ *
+ * #include <errno.h>
+ * #include <string.h>
+ *
+ *    if ( status < 0 ) fprintf(stderr,"Message: %s\n", strerror(-status));
+ */
+
+/* Create; RETURNS: NEGERR (see above) or 0 on success */
 int
 udpCommSocket(int port);
 
-/* Close  */
+/* Close; RETURNS: NEGERR (see above) or 0 on success  */
 int
 udpCommClose(int sd);
 
@@ -43,22 +55,28 @@ udpCommClose(int sd);
  *        an unconnected socket. (Otherwise the socket would be unable
  *        to receive since only packets from the connected peer [a
  *        MC/BC address in this case] would be accepted).
+ * RETURNS: NEGERR (see above) on failure, 0 on success;
  */
 int
 udpCommConnect(int sd, uint32_t diaddr, int port);
 
-/* Receive a packet */
+/* Receive a packet; RETURNS: packet handle on success, NULL on failure */
 UdpCommPkt
 udpCommRecv(int sd, int timeout_ms);
 
 /* Receive a packet and sender information
  *
  * NOTE: port is in host, IP address in network byte order.
+ *
+ * RETURNS: packet handle on success, NULL on failure.
  */
 UdpCommPkt
 udpCommRecvFrom(int sd, int timeout_ms, uint32_t *ppeerip, uint16_t *ppeerport);
 
-/* Allocate a packet (for sending with udpCommSendPktTo) */
+/* Allocate a packet (for sending with udpCommSendPktTo)
+ *
+ * RETURNS: packet handle on success, NULL on failure.
+ */
 UdpCommPkt
 udpCommAllocPacket();
 
@@ -90,6 +108,8 @@ udpCommBufPtr(UdpCommPkt p);
  * The data in 'buf' has to be copied
  * into the 'lanIpBasic' stack (no-op
  * when using BSD sockets).
+ *
+ * RETURNS: NEGERR (see above) on failure, number of octets sent on success.
  */
 int
 udpCommSend(int sd, void *buf, int len);
@@ -103,6 +123,8 @@ udpCommSend(int sd, void *buf, int len);
  *       transferred to the stack by
  *       this call (regardless of the
  *       return value).
+ *
+ * RETURNS: NEGERR (see above) on failure, number of octets sent on success.
  */
 int
 udpCommSendPkt(int sd, UdpCommPkt pkt, int len);
@@ -113,6 +135,8 @@ udpCommSendPkt(int sd, UdpCommPkt pkt, int len);
  *
  * NOTE: 'dipaddr' is the peer's IP address in *network* byte order
  *       'port'    is the peer's port number in *host*   byte order
+ *
+ * RETURNS: NEGERR (see above) on failure, number of octets sent on success.
  */
 int
 udpCommSendPktTo(int sd, UdpCommPkt pkt, int len, uint32_t dipaddr, int port);
@@ -129,7 +153,7 @@ udpCommReturnPacket(UdpCommPkt p, int len);
  * NOTE: calls do not nest; you cannot call this twice on the
  *       same socket.
  *
- * RETURNS: zero on success, -errno on failure.
+ * RETURN: zero on success, NEGERR (see above) on failure.
  */
 
 int
@@ -154,7 +178,7 @@ udpCommLeaveMcast(int sd, uint32_t mc_addr);
  * and other general-purpose, protected OSes) no
  * special privileges are required.
  *
- * RETURNS: zero on success, nonzero (-errno) on
+ * RETURNS: zero on success, NEGERR (see above) on
  *          error.
  *
  * NOTES:   use a 'ifaddr' == 0 to remove the

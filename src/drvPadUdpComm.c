@@ -683,6 +683,13 @@ epicsTimeStamp         now;
 DrvPadUdpCommCallbacksRec cb = drvPadUdpCommCallbacks;
 DrvPadUdpCommHWTime    tDiff;
 int         bad_version_count = 0;
+unsigned int orig_prio;
+
+	/* Lower priority during initialization */
+
+	orig_prio = epicsThreadGetPrioritySelf();
+
+	epicsThreadSetPriority( epicsThreadGetIdSelf(), epicsThreadPriorityLow );
 
 	if ( cb.init )
 		cb.init(&cb);
@@ -696,6 +703,8 @@ int         bad_version_count = 0;
 			strerror(-sd));
 		return;
 	}
+
+	epicsThreadSetPriority( epicsThreadGetIdSelf(), orig_prio );
 
 	while ( 1 ) {
 		/* release old buffer */

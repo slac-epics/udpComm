@@ -1,3 +1,5 @@
+20141001 (T.S.)
+ - src/drvPadUdpComm.c: lower priority of listener thread during initialization
 20140204 (S.H.)
  - src/drvPadUdpComm.c: if epicsTimeGetEvent fails, simply issue warning
    instead of aborting. This change is to support users that will not have

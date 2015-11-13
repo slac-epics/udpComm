@@ -1,7 +1,8 @@
 #include <drvPadUdpComm.h>
 
 #ifndef TEST_ONLY
-#include <drvMrfEr.h>
+ // #include <drvMrfEr.h>
+epicsStatus  ErGetTicks(int, epicsUInt32*);  /* temporal solution to build with evrClient module */
 
 DrvPadUdpCommHWTime
 drvPadUdpCommHWTime(void)

@@ -1,3 +1,6 @@
+udpComm-R2-6-0: 2015/11/13  K. kim
+- Build against evrClient, R1-0-p3, EVR sharing module
+
 udpComm-R2-5-9: 2015/02/19  S.Condamoor
 - Update event module - event-R4-1-6
 

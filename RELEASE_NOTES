@@ -1,3 +1,7 @@
+udpComm-R2-6-1: 2015/12/02  K. Kim
+- Support for sharing fcom among mutilple viocs
+  (allow to reuse address for udpComm layer)
+
 udpComm-R2-6-0: 2015/11/13  K. kim
 - Build against evrClient, R1-0-p3, EVR sharing module
 

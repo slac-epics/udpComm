@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.9 2013/09/05 20:32:57 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.10 2014/07/31 20:01:50 strauman Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -141,6 +141,12 @@ int                err, yes;
 		err = ERRNONEG;
 		close(sd);
 		return err;
+	}
+
+	if ( setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) ) {
+		err = ERRNONEG;
+		close(sd);
+		return err;    	
 	}
 
 #if 0

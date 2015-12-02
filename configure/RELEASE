@@ -20,7 +20,7 @@ EPICS_MODULES=$(MODULES_SITE_TOP)
 # Define the version of modules needed by
 # IOC apps or other Support apps
 # =============================================================
-EVENT_MODULE_VERSION=R1-0-p3
+EVENT_MODULE_VERSION=evrClient-R1-0-p4
 
 MISCUTILS_MODULE_VERSION=miscUtils-R2-2-2
 

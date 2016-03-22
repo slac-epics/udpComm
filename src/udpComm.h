@@ -1,4 +1,4 @@
-/* $Id: udpComm.h,v 1.6 2011/04/20 20:46:44 strauman Exp $ */
+/* $Id: udpComm.h,v 1.7 2014/07/31 19:52:46 strauman Exp $ */
 #ifndef UDPCOMM_LAYER_H
 #define UDPCOMM_LAYER_H
 
@@ -190,6 +190,17 @@ udpCommLeaveMcast(int sd, uint32_t mc_addr);
  */
 int
 udpCommSetIfMcastOut(int sd, uint32_t ifipaddr);
+
+/*
+ * Set the multicast TTL
+ * If TTL is left at it's default of 1, the multicast packets
+ * will not leave the local subnet.
+ *
+ * RETURNS: zero on success, NEGERR (see above) on
+ *          error.
+ */
+int
+udpCommSetMcastTTL(int sd, uint32_t ttl );
 
 /* Set the IP address of the receiving interface
  * (if host has multiple NICs) in network byte order.

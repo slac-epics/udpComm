@@ -9,8 +9,8 @@ include $(TOP)/configure/CONFIG
 #==================================================
 # Build an IOC support library
 #LIBRARY_HOST        = udpCommBSD padSupport
-LIBRARY_IOC_DEFAULT = udpCommBSD padSupport padUdpCommSupport
-LIBRARY_IOC_RTEMS   = udpCommBSD padSupport padUdpCommSupport udpComm
+LIBRARY_IOC_DEFAULT = padSupport padUdpCommSupport udpCommBSD 
+LIBRARY_IOC_RTEMS   = padSupport padUdpCommSupport udpComm
 
 PROD_HOST           = padProtoHost
 PROD_IOC_RTEMS      = padStreamTestSrv
@@ -82,3 +82,4 @@ include $(TOP)/configure/RULES
 
 #----------------------------------------
 #  ADD RULES AFTER THIS LINE
+

@@ -1,4 +1,4 @@
-/* $Id: udpCommBSD.c,v 1.10 2014/07/31 20:01:50 strauman Exp $ */
+/* $Id: udpCommBSD.c,v 1.11 2015/12/02 18:38:13 khkim Exp $ */
 
 /* Glue layer to send padProto over ordinary UDP sockets */
 
@@ -381,19 +381,20 @@ udpCommLeaveMcast(int sd, uint32_t mcaddr)
 int
 udpCommSetIfMcastOut(int sd, uint32_t ifipaddr)
 {
-#ifdef __linux__
-struct ip_mreqn arg;
-
-	memset(&arg, 0, sizeof(arg));
-#define mcifa arg.imr_address
-#else
-struct in_addr  arg;
-#define mcifa arg
-#endif
-
-	mcifa.s_addr = ifipaddr;
-
+	struct ip_mreqn mcifa;
+	memset(&mcifa, 0, sizeof(mcifa));
+	mcifa.imr_address.s_addr = ifipaddr;
 	if ( setsockopt(sd, IPPROTO_IP, IP_MULTICAST_IF, &mcifa, sizeof(mcifa)) ) {
+		return ERRNONEG;
+	}
+
+	return 0;
+}
+
+int
+udpCommSetMcastTTL(int sd, uint32_t ttl )
+{
+	if ( setsockopt(sd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) ) {
 		return ERRNONEG;
 	}
 

@@ -1,4 +1,4 @@
-/* $Id: udpComm.c,v 1.5 2010/02/02 22:11:24 strauman Exp $ */
+/* $Id: udpComm.c,v 1.6 2011/04/20 20:46:44 strauman Exp $ */
 
 #include <lanIpBasic.h>
 #include <netinet/in.h>
@@ -69,6 +69,14 @@ int
 udpCommSetIfMcastOut(int sd, uint32_t mc_addr)
 {
 	return udpSockSetIfMcast(sd, mc_addr);
+}
+
+int
+udpCommSetMcastTTL(int sd, uint32_t ttl )
+{
+	/* setsockOpt IP_MULTICAST_TTL is not supported and
+	 * apparently not needed for RTEMS */
+	return 0;
 }
 
 void

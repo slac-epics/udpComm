@@ -1,4 +1,4 @@
-/* $Id: udpComm.h,v 1.7 2014/07/31 19:52:46 strauman Exp $ */
+/* $Id: udpComm.h,v 1.6 2011/04/20 20:46:44 strauman Exp $ */
 #ifndef UDPCOMM_LAYER_H
 #define UDPCOMM_LAYER_H
 
@@ -103,6 +103,10 @@ udpCommRefPacket(UdpCommPkt p);
 /* Obtain pointer to data area in buffer (UDP payload) */
 void *
 udpCommBufPtr(UdpCommPkt p);
+
+/* Obtain size of data in packet (only valid for received packets) */
+int
+udpCommBufSize(UdpCommPkt p);
 
 /* Send packet to connected peer; 
  * The data in 'buf' has to be copied

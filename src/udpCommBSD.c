@@ -76,6 +76,7 @@ typedef struct {
 	int             rx_sd;
 	void            *raw_mem;
 	int             refcnt;
+	int             data_sz;
 } __attribute__((may_alias)) UdpCommBSDPkt;
 
 #ifndef OPEN_MAX
@@ -106,6 +107,7 @@ UdpCommBSDPkt *p;
 	p->raw_mem = p_raw;
 	p->rx_sd   = -1;
 	p->refcnt  =  1;
+	p->data_sz = 0;
 	return p;
 }
 
@@ -143,10 +145,11 @@ int                err, yes;
 		return err;
 	}
 
+	yes = 1;
 	if ( setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) ) {
 		err = ERRNONEG;
 		close(sd);
-		return err;    	
+		return err;
 	}
 
 
@@ -177,6 +180,7 @@ fd_set             fds;
 UdpCommBSDPkt      *p;
 struct sockaddr_in __attribute__((may_alias)) *sa;
 socklen_t          len;
+int                got;
 
 	tv.tv_sec  = timeout_ms/1000;
 	tv.tv_usec = 1000*(timeout_ms % 1000);
@@ -193,7 +197,7 @@ socklen_t          len;
 	sa         = (struct sockaddr_in __attribute__((may_alias)) *)&p->sender;
 	len        = sizeof( p->sender );
 
-	if ( recvfrom(sd, p->data, sizeof(p->data), 0, &p->sender, &len) < 0 ) {
+	if ( (got = recvfrom(sd, p->data, sizeof(p->data), 0, &p->sender, &len)) < 0 ) {
 		udpCommFreePacket(p);
 		return 0;
 	} else {
@@ -202,7 +206,8 @@ socklen_t          len;
 		if ( ppeerport )
 			*ppeerport = ntohs(sa->sin_port);
 	}
-	p->rx_sd = sd;
+	p->rx_sd   = sd;
+	p->data_sz = got;
 	return p;
 }
 
@@ -422,3 +427,10 @@ udpCommBufPtr(UdpCommPkt p)
 {
 	return p;
 }
+
+int
+udpCommBufSize(UdpCommPkt p)
+{
+	return ((UdpCommBSDPkt *)p)->data_sz;
+}
+

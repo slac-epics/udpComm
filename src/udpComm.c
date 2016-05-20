@@ -1,4 +1,4 @@
-/* $Id: udpComm.c,v 1.6 2011/04/20 20:46:44 strauman Exp $ */
+/* $Id: udpComm.c,v 1.7 2016/03/22 04:36:40 bhill Exp $ */
 
 #include <lanIpBasic.h>
 #include <netinet/in.h>
@@ -131,6 +131,14 @@ udpCommBufPtr(UdpCommPkt p)
 {
 	return udpSockUdpBufPayload((LanIpPacket)p);
 }
+
+/* HACK -- this should really go into lanIpBasic */
+int
+udpCommBufSize(UdpCommPkt p)
+{
+    return ntohs(lpkt_udp_hdrs((LanIpPacket)p).udp.len) - sizeof(UdpHeaderRec);
+}
+
 
 int
 udpCommSend(int sd, void *payload, int payload_len)

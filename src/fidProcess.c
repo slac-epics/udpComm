@@ -34,7 +34,7 @@ epicsTimeStamp             time_s;
 #ifndef TEST_ONLY
 /* This is actually an array type */
 evrModifier_ta             modifier_a;
-unsigned long              patternStatus;
+epicsUInt32                patternStatus;
 int                        st;
 #endif
 

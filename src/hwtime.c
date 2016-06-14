@@ -1,7 +1,11 @@
 #include <drvPadUdpComm.h>
 
 #ifndef TEST_ONLY
+#if defined(__rtems__)
+#include <drvMrfEr.h>
+#else
 #include <devMrfEr.h>
+#endif
 
 DrvPadUdpCommHWTime
 drvPadUdpCommHWTime(void)

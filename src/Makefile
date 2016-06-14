@@ -9,8 +9,8 @@ include $(TOP)/configure/CONFIG
 #==================================================
 # Build an IOC support library
 #LIBRARY_HOST        = udpCommBSD padSupport
-LIBRARY_IOC_DEFAULT = udpCommBSD padSupport padUdpCommSupport
-LIBRARY_IOC_RTEMS   = udpCommBSD padSupport padUdpCommSupport udpComm
+LIBRARY_IOC_DEFAULT = padSupport padUdpCommSupport udpCommBSD 
+LIBRARY_IOC_RTEMS   = padSupport padUdpCommSupport udpComm
 
 PROD_HOST           = padProtoHost
 PROD_IOC_RTEMS      = padStreamTestSrv
@@ -42,6 +42,12 @@ INC += drvPadAdcStream.h
 
 #Indicate that we want to use 'normal' socket implementation
 USR_CPPFLAGS += $(SDDS_$(USE_SDDS)_CPPFLAGS) $(TEST_ONLY_$(TEST_ONLY)_CPPFLAGS)
+
+ifeq '$(OS_CLASS)' 'Linux'
+USR_CPPFLAGS += -I$(EPICS_MODULES)/evrClient/$(EVRCLIENT_MODULE_VERSION)/include
+else
+USR_CPPFLAGS += -I$(EPICS_MODULES)/event/$(EVENT_MODULE_VERSION)/include
+endif
 
 # install devXxxSoft.dbd into <top>/dbd
 DBD += padUdpCommSupport.dbd

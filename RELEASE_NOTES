@@ -1,9 +1,12 @@
+udpComm-R2-7-1: 2016/06/23 B. Hill
+	Updated to miscUtils-R2-2-3 as the miscUtils-R2-2-2 libmiscUtils.a for linux-x86_64 and linuxRT
+		has an undefined symbol S_ISDIR that should have been expanded as a macro.
+	Build Linux targets against evrClient-R1-0-p7 and RTEMS targets against event-R4-2-4
+
 udpComm-R2-7-0: 2016/06/13 B. Hill
 -   Fixed setsockopt IP_MULTICAST_IF and added udpCommSetMCastTTL() function.
     Modified build to not try and build udpCommBSD for RTEMS as it isn't supported or used.
 	Build Linux targets against evrClient-R1-0-p6 and RTEMS targets against event-R4-2-3
-	Updated to miscUtils-R2-2-3 as the miscUtils-R2-2-2 libmiscUtils.a for linux-x86_64 and linuxRT
-		has an undefined symbol S_ISDIR that should have been expanded as a macro.
 
 udpComm-R2-6-2: 2015/12/02 K. Kim
 - Build against evrClient-R1-0-p4

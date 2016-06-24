@@ -22,7 +22,7 @@ EPICS_MODULES=$(MODULES_SITE_TOP)
 # =============================================================
 EVENT_MODULE_VERSION=event-R4-2-3
 EVRCLIENT_MODULE_VERSION=evrClient-R1-0-p4
-MISCUTILS_MODULE_VERSION=miscUtils-R2-2-3
+MISCUTILS_MODULE_VERSION=miscUtils-R2-2-2
 
 # ============================================================
 # Dependent Modules: Need event module to pass timestamp from 

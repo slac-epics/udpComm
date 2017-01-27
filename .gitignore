@@ -1,8 +1,8 @@
-bin/
-CVS/
-O.*/
 RELEASE_SITE
-db/
-dbd/
-iocBoot/*/envPaths
-*~
+O.*
+db
+dbd
+include
+lib
+bin
+*.log

@@ -1,0 +1,42 @@
+# RELEASE.local
+#
+# Read definitions of:
+#	EPICS_SITE_TOP
+#	BASE_MODULE_VERSION
+#	EPICS_MODULES 
+# from one of the following options
+-include $(TOP)/../../RELEASE_SITE
+-include $(TOP)/RELEASE_SITE
+
+# Check that EPICS_MODULES was defined in a RELEASE_SITE file
+-include $(TOP)/../../RELEASE_SITE.check
+
+# ==========================================================
+# Define the version strings for all needed modules
+# Use naming pattern:
+#   FOO_MODULE_VERSION = R1.2
+# so scripts can extract version strings
+# Don't set your version to anything such as "test" that
+# could match a directory name.
+# ==========================================================
+EVENT_MODULE_VERSION		= R4.2.6
+EVRCLIENT_MODULE_VERSION	= R1.1.1
+MISCUTILS_MODULE_VERSION	= R2.2.4
+
+# ============================================================
+# Dependent Modules: Need event module to pass timestamp from 
+# EVR to PAD
+# ==============================================================
+MISCUTILS=$(EPICS_MODULES)/miscUtils/$(MISCUTILS_MODULE_VERSION)
+#
+# NOTE: Do NOT define either EVENT or EVRCLIENT here as EVR
+# driver is target specific.  See src/Makefile
+#
+
+
+# Set EPICS_BASE last so it appears last in the DB, DBD, INCLUDE, and LIB search paths
+EPICS_BASE              = $(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
+
+# Check for undefined EPICS_BASE
+-include $(TOP)/../../EPICS_BASE.check
+

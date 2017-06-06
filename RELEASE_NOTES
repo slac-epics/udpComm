@@ -1,3 +1,7 @@
+R2.10.0:    2017/06/06  H. Slepicka
+    Bumped Event version to R4.2.9
+    Bumped MiscUtils version to R2.2.5
+
 R2.9.0:     2017/02/20  H. Slepicka
     Bumped EVENT version to R4.2.8.
     Changed name of CONFIG_SITE.Common.linuxRT* to remove glibc from it.

@@ -19,9 +19,9 @@
 # Don't set your version to anything such as "test" that
 # could match a directory name.
 # ==========================================================
-EVENT_MODULE_VERSION		= R4.2.8
+EVENT_MODULE_VERSION		= R4.2.9
 EVRCLIENT_MODULE_VERSION	= R1.1.1
-MISCUTILS_MODULE_VERSION	= R2.2.4
+MISCUTILS_MODULE_VERSION	= R2.2.5
 
 # ============================================================
 # Dependent Modules: Need event module to pass timestamp from 

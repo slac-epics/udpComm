@@ -6,7 +6,7 @@ DrvPadUdpCommHWTime
 drvPadUdpCommHWTime_default(void)
 {
 struct timespec now;
-DrvPadUpdCommHWTime       now_ns;
+DrvPadUdpCommHWTime       now_ns;
 const DrvPadUdpCommHWTime ns = (DrvPadUdpCommHWTime)1000000000ULL;
 
 	clock_gettime( CLOCK_MONOTONIC, &now );

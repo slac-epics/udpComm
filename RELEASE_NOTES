@@ -1,3 +1,7 @@
+R2.11.0:    2018/03/20  T. Straumann
+    drvPadUdpCommHWTime() always uses posix clock_gettime; removed variant
+    that relied on EVR-specific code (ErGetTicks).
+
 R2.10.0:    2017/06/06  H. Slepicka
     Bumped Event version to R4.2.9
     Bumped MiscUtils version to R2.2.5

@@ -43,11 +43,7 @@ INC += drvPadAdcStream.h
 #Indicate that we want to use 'normal' socket implementation
 USR_CPPFLAGS += $(SDDS_$(USE_SDDS)_CPPFLAGS) $(TEST_ONLY_$(TEST_ONLY)_CPPFLAGS)
 
-ifeq '$(OS_CLASS)' 'Linux'
-USR_CPPFLAGS += -I$(EPICS_MODULES)/evrClient/$(EVRCLIENT_MODULE_VERSION)/include
-else
-USR_CPPFLAGS += -I$(EPICS_MODULES)/event/$(EVENT_MODULE_VERSION)/include
-endif
+USR_CPPFLAGS += $(addprefix -I,$(EPICS_MODULES)/event/$(EVENT_MODULE_VERSION)/include)
 
 # install devXxxSoft.dbd into <top>/dbd
 DBD += padUdpCommSupport.dbd

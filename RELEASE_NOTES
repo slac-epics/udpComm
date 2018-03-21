@@ -1,6 +1,7 @@
-R2.11.1:    2018/03/20  T. Straumann
+R2.11.2:    2018/03/20  T. Straumann
     TIMINGAPI -> R0.6
     EVENT     -> R4.3.0-BR-new_bsa_core
+    DONT use EVRCLIENT
 R2.11.0:    2018/03/20  T. Straumann
     drvPadUdpCommHWTime() always uses posix clock_gettime; removed variant
     that relied on EVR-specific code (ErGetTicks).

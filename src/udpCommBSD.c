@@ -22,10 +22,13 @@
 #define ERRNONEG (errno ? -errno : -1)
 
 static pthread_mutex_t  udpcomm_Mtx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t  freelst_Mtx = PTHREAD_MUTEX_INITIALIZER;
 
-#define __LOCK()   pthread_mutex_lock( & udpcomm_Mtx )
+#define __LOCK()   do { if ( pthread_mutex_lock( & udpcomm_Mtx ) ) abort(); }  while ( 0 )
 #define __UNLOCK() pthread_mutex_unlock( & udpcomm_Mtx )
 
+#define __LOCKLST()   do { if ( pthread_mutex_lock( & freelst_Mtx ) ) abort(); }  while ( 0 )
+#define __UNLOCKLST() pthread_mutex_unlock( & freelst_Mtx )
 
 #define DO_ALIGN(x,a) (((uintptr_t)(x) + ((a)-1)) & ~((a)-1))
 #define BUFALIGN(x)   DO_ALIGN(x,UDPCOMM_DATA_ALGN)
@@ -79,6 +82,11 @@ typedef struct {
 	int             data_sz;
 } __attribute__((may_alias)) UdpCommBSDPkt;
 
+typedef union PktBuf_ {
+	union PktBuf_   *next;
+	char             raw[sizeof(UdpCommBSDPkt) + PADSZ + UDPCOMM_DATA_ALGN - 1];
+} PktBuf;
+
 #ifndef OPEN_MAX
 /* Some systems do not define this. Use
  * a reasonable value - the udpSockCreate()
@@ -92,18 +100,28 @@ static struct {
 	uint16_t dport;
 } sdaux[OPEN_MAX] = { {0} };
 
+static PktBuf *freeList = 0;
+
 UdpCommPkt
 udpCommAllocPacket()
 {
-void          *p_raw;
+PktBuf        *p_raw;
 UdpCommBSDPkt *p;
 
-	p_raw      = malloc(sizeof(*p) + PADSZ + UDPCOMM_DATA_ALGN-1);
+	__LOCKLST();
+		if ( (p_raw = freeList) ) {
+			freeList = p_raw->next;
+		}
+	__UNLOCKLST();
+
+	if ( ! p_raw ) {
+		p_raw = malloc(sizeof(*p_raw));
+	}
 
 	if ( !p_raw )
 		return 0;
 
-	p          = (UdpCommBSDPkt*)(BUFALIGN(p_raw) + PADSZ);
+	p          = (UdpCommBSDPkt*)(BUFALIGN(p_raw->raw) + PADSZ);
 	p->raw_mem = p_raw;
 	p->rx_sd   = -1;
 	p->refcnt  =  1;
@@ -216,13 +234,20 @@ udpCommFreePacket(UdpCommPkt p)
 {
 int c;
 UdpCommBSDPkt *pkt = (UdpCommBSDPkt*)p;
+PktBuf        *raw;
 
 	if ( pkt ) {
 		__LOCK();
-		c = --pkt->refcnt;
+		c = --(pkt->refcnt);
 		__UNLOCK();
 		if ( 0 == c ) {
-			free(pkt->raw_mem);
+			__LOCKLST();
+				raw       = (PktBuf *) pkt->raw_mem;
+				raw->next = freeList;
+				freeList  = raw;
+			__UNLOCKLST();
+		} else if ( c < 0 ) {
+			abort();
 		}
 	}
 }

@@ -1,3 +1,6 @@
+R2.12.0:    2018/03/20  T. Straumann
+    udpCommBSD: keep buffers on a free list rather than returning to the heap.
+    (should make allocation/free more efficient).
 R2.11.3:    2018/03/20  T. Straumann
     EVENT     -> R4.3.1-BR-new_bsa_core
 R2.11.2:    2018/03/20  T. Straumann

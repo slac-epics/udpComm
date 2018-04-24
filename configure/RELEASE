@@ -3,8 +3,3 @@
 # Run "gnumake clean uninstall install" in the application
 # top directory each time this file is changed.
 -include $(TOP)/configure/RELEASE.local
-
-ifeq ($(wildcard $(MISCUTILS)/include),)
-$(error Invalid MISCUTILS: $(MISCUTILS))
-endif
-

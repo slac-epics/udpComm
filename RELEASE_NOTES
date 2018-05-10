@@ -1,3 +1,8 @@
+support_evrClient:  2018/05/10  Kukhee Kim
+                    Branch out to support evrClient instead of event module
+
+
+
 R2.11.5:    2018/04/18  T. Straumann
     EVENT    -> R4.3.5
 R2.11.4:    2018/04/18  K. Kim

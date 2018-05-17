@@ -19,7 +19,7 @@
 # Don't set your version to anything such as "test" that
 # could match a directory name.
 # ==========================================================
-EVENT_MODULE_VERSION		= R1.4.1
+EVENT_MODULE_VERSION		= R1.4.2
 TIMINGAPI_MODULE_VERSION	= R0.6
 MISCUTILS_MODULE_VERSION	= R2.2.5
 

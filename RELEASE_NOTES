@@ -1,3 +1,6 @@
+R2.20.2    2018/05/16   Kukhee Kim
+           * build against evrClient R1.4.2
+
 R2.20.1:   2018/05/10   Kukhee Kim
            * align with 
              - evrClient   R1.4.1

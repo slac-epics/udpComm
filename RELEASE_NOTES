@@ -1,3 +1,6 @@
+R2.20.4    2018/08/18   Kukhee Kim
+           * build against evrClient R1.4.4 from support_evrClient branch
+
 R2.20.3    2018/06/28   Kukhee Kim
            * build against evrClient R1.4.3 from support_evrClient branch
 

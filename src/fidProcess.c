@@ -47,8 +47,15 @@ int                        st;
 	/* only interested in 120Hz... */
 	st = evrTimeGetFromPipeline( time_s_p, evrTimeCurrent, modifier_a, &patternStatus, 0, 0, 0);
 	if ( st ) {
+/*
+ *  Suppress an error message here. The timing system (EVR support) already
+ *  provides a record (<prefix>:PATTERN360HZ) which holds (almost) the exact
+ *  same information: field 'O' holds 'status ? 1 : 0' (it should probably
+ *  be modified to just hold the status rather than trimming down information).
+ *
 		epicsPrintf("drvPadUdpComm: (fidTimeGetBaseline_generic()) epicsTimeGetFromPipeline failed (status %i)\n", st);
 		
+*/
 		return 0;
 	}
 

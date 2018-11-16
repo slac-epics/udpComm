@@ -1027,8 +1027,8 @@ drvPadUdpCommPrefsInit(DrvPadUdpCommPrefs p)
 {
 	p->nsamples          = drvPadUdpCommGetNsamplesDefault();
 	p->d32               = -1;
-	p->nsamples_dynamic  =  1;
-	p->nchannels_dynamic =  1;
+	p->nsamples_dynamic  = -1;
+	p->nchannels_dynamic = -1;
 	p->col_major         = -1;
 }
 

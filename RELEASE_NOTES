@@ -1,3 +1,8 @@
+    drvPadUdpComm.c: relax default values for nsamples_dynamic,
+    nchannels_dynamic: if no peer answers the initial query
+    (e.g., because it is not on-line yet) then assume it is OK
+    to accept the values requested by the host-side.
+
 R2.11.11:   2018/11/13  K. Kim for Till Straumann
     fidProcess.c: Suppress error message when evrTimeGetFromPipeline fails
     An evrSupport record already provides that information.

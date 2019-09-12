@@ -1,3 +1,6 @@
+R2.11.13    2019/09/11 K. Kim
+    buid against event R4.4.1
+
 R2.11.12    2018/11/16 K. Kim for Till Straumann
     drvPadUdpComm.c: relax default values for nsamples_dynamic,
     nchannels_dynamic: if no peer answers the initial query

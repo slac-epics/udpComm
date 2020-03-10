@@ -1,3 +1,7 @@
+R2.20.11   2020/03/10   Kukhee Kim
+           * change evrClient macro (EVENT to EVRCLIENT)
+           * build with evrClient R1.5.0 (support evrClient)
+
 R2.20.10   2020/02/07   Kukhee Kim
            * build against evrClient R1.5.0 (support evrClent)
 

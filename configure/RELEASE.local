@@ -19,7 +19,7 @@
 # Don't set your version to anything such as "test" that
 # could match a directory name.
 # ==========================================================
-EVENT_MODULE_VERSION		= R1.5.0
+EVRCLIENT_MODULE_VERSION	= R1.5.0
 TIMINGAPI_MODULE_VERSION	= R0.6
 MISCUTILS_MODULE_VERSION	= R2.2.5
 
@@ -29,7 +29,7 @@ MISCUTILS_MODULE_VERSION	= R2.2.5
 # ==============================================================
 MISCUTILS=$(EPICS_MODULES)/miscUtils/$(MISCUTILS_MODULE_VERSION)
 TIMINGAPI=$(EPICS_MODULES)/timingApi/$(TIMINGAPI_MODULE_VERSION)
-EVENT=$(EPICS_MODULES)/evrClient/$(EVENT_MODULE_VERSION)
+EVRCLIENT=$(EPICS_MODULES)/evrClient/$(EVRCLIENT_MODULE_VERSION)
 #
 # NOTE: Do NOT define either EVENT or EVRCLIENT here as EVR
 # driver is target specific.  See src/Makefile

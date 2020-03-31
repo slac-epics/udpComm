@@ -6,6 +6,8 @@
 
 #include <epicsInterrupt.h>
 #include <epicsThread.h>
+#include <epicsEvent.h>
+#include <epicsExit.h>
 #include <epicsTime.h>
 #include <epicsExport.h>
 #include <epicsVersion.h>
@@ -82,6 +84,9 @@ uint32_t	roundtripMax = 0;
 uint32_t	roundtripAvg = 0;
 #endif
 
+
+static epicsEventId     shutdownEvent;
+static int              workLoop = 1;
 
 int			drvPadUdpCommDebug = 0;
 
@@ -706,7 +711,7 @@ unsigned int orig_prio;
 
 	epicsThreadSetPriority( epicsThreadGetIdSelf(), orig_prio );
 
-	while ( 1 ) {
+	while ( workLoop ) {
 		/* release old buffer */
 		io.free(pkt);
 
@@ -848,6 +853,9 @@ unsigned int orig_prio;
 		if ( tDiff > drvPadUdpCommMaxCook )
 			drvPadUdpCommMaxCook = tDiff;
 	}
+
+        epicsEventSignal(shutdownEvent);
+
 }
 
 static void
@@ -857,7 +865,7 @@ int i, err = 0;
 
 DrvPadUdpCommCallbacks cb = &drvPadUdpCommCallbacks;
 
-	while ( 1 ) {
+	while ( workLoop ) {
 		/* Invalidate 'up-to-date flags' */
 		int			key,j;
 		uint32_t    timedout[PADRPLY_STRM_NUM_KINDS], t, s, sa;
@@ -1022,6 +1030,16 @@ check_pref(int *proposed, int *requested, int dflt, const char *msg)
 	return -1;
 }
 
+
+static int drvPadUdpCommStop(void *arg)
+{
+    workLoop = 0;
+    epicsEventWait(shutdownEvent);
+    if(drvPadUdpCommDebug) epicsPrintf("drvPadUdpComm: Stop Listener Thread\n");
+
+    return 0;
+}
+
 void
 drvPadUdpCommPrefsInit(DrvPadUdpCommPrefs p)
 {
@@ -1166,6 +1184,9 @@ got_reply:
 		scanIoInit(&scanlist[i]);
 		scanIoInit(&dScanlist[i]);
 	}
+
+        shutdownEvent = epicsEventMustCreate(epicsEventEmpty);
+        workLoop      = 1;
 	epicsThreadCreate(
 			"drvPadUdpCommListener",
 			epicsThreadPriorityMax,
@@ -1179,6 +1200,8 @@ got_reply:
 			epicsThreadGetStackSize(epicsThreadStackMedium),
 			drvPadUdpCommWatchdog,
 			0);
+
+       epicsAtExit3((epicsExitFunc) drvPadUdpCommStop, (void*) NULL, "drvPadUdpCommStop");      
 
 	if ( drvPadUdpCommCallbacks.fid_process_install )
 		drvPadUdpCommCallbacks.fid_process_install();

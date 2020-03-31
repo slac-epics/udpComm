@@ -1,3 +1,9 @@
+    ** support envent module **
+
+R2.11.14    2020/03/31 K. Kim
+    force tag
+    implment a graceful shutdown - stopping listener thread when ioc exits
+   
 R2.11.14    2020/02/07 K. Kim
     build against event R4.5.1
 

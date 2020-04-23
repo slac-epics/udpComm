@@ -20,14 +20,14 @@ EPICS_MODULES=$(MODULES_SITE_TOP)
 # Define the version of modules needed by
 # IOC apps or other Support apps
 # =============================================================
-EVENT_MODULE_VERSION=event-R4-2-4
-EVRCLIENT_MODULE_VERSION=evrClient-R1-0-p7
+EVENT_MODULE_VERSION=event-R4-2-5-CLTS-R3
 MISCUTILS_MODULE_VERSION=miscUtils-R2-2-3
 
 # ============================================================
 # Dependent Modules: Need event module to pass timestamp from 
 # EVR to PAD
 # ==============================================================
+EVENT=$(EPICS_MODULES)/event/$(EVENT_MODULE_VERSION)
 MISCUTILS=$(EPICS_MODULES)/miscUtils/$(MISCUTILS_MODULE_VERSION)
 #
 # NOTE: Do NOT define either EVENT or EVRCLIENT here as EVR

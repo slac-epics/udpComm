@@ -1,5 +1,8 @@
     ** support envent module **
 
+R2.11.17    2021/02/12 K. Kim
+    build against event R4.5.5
+
 R2.11.16    2021/01/12 K. Kim
     build against event R4.5.4
 

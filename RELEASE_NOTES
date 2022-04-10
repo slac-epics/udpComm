@@ -1,5 +1,11 @@
     ** support envent module **
 
+R2.12.0     2022/04/08 M. Donadio
+    OPEN_MAX now allows up to 50 file descriptors on Linux systems. The error
+    message for when the socket file descriptor is greater than OPEN_MAX was
+    improved because the previous message brought confusion when diagnosing the
+    problem.
+
 R2.11.17    2021/02/12 K. Kim
     build against event R4.5.5
 

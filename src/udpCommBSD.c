@@ -92,7 +92,15 @@ typedef union PktBuf_ {
  * a reasonable value - the udpSockCreate()
  * routine checks against overflow.
  */
+/* linuxRT systems are getting more than 35 file descriptors
+ * easily when accessing the ATCA crates. We had to increase
+ * OPEN_MAX to allow bigger sd.
+ */
+#ifdef __linux__
+#define OPEN_MAX 50 
+#else
 #define OPEN_MAX 20
+#endif
 #endif
 
 static struct {
@@ -136,11 +144,11 @@ int                sd = socket(AF_INET, SOCK_DGRAM, 0);
 struct sockaddr_in me;
 int                err, yes;
 
-	if ( sd < 0 )
+        if ( sd < 0 )
 		return ERRNONEG;
 
 	if ( sd >= OPEN_MAX ) {
-		fprintf(stderr,"INTERNAL ERROR sd > OPEN_MAX\n");
+		fprintf(stderr,"INTERNAL ERROR. OPEN_MAX is defined as %d in udpCommBSD.c. The socket file descriptor sd was opened as %d. sd can't be > OPEN_MAX.\n", OPEN_MAX, sd);
 		close(sd);
 		return -ENFILE;
 	}

@@ -108,6 +108,8 @@ extern uint32_t  drvPadUdpCommPeerAddr;
 extern int drvPadUdpCommPort;
 /* timeout (in ms) when waiting for a reply or streamed data */
 extern int drvPadUdpCommTimeout;
+extern double drvPadUdpCommStrmTimeout;
+
 /* bitmask of channels that are currently in-use (not 'offline') -- READ_ONLY */
 extern volatile uint32_t drvPadUdpCommChannelsInUseMask;
 

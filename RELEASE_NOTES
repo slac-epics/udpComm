@@ -1,5 +1,10 @@
     ** support envent module **
 
+R2.13.1     2022/06/16 S. Hoobler
+    Expose drvPadUdpCommStrmTimeout in src/drvPadUdpComm.h
+    so client applications can optionally modify the default
+    timeout of 5 seconds
+
 R2.13.0     2022/04/08 M. Donadio
     OPEN_MAX now allows up to 50 file descriptors on Linux systems. The error
     message for when the socket file descriptor is greater than OPEN_MAX was

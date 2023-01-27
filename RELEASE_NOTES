@@ -1,5 +1,8 @@
     ** support envent module **
 
+R2.13.2     2023/01/27 K. Luchini
+    Upgrade from event R4.5.5 to R4.8.4
+
 R2.13.1     2022/06/16 S. Hoobler
     Expose drvPadUdpCommStrmTimeout in src/drvPadUdpComm.h
     so client applications can optionally modify the default

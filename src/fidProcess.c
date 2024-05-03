@@ -4,7 +4,7 @@
 
 #ifndef TEST_ONLY
 #include <evrTime.h>
-#include <evrPattern.h>
+#include <eventPattern.h>
 #endif
 
 #include <drvPadUdpComm.h>

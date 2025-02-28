@@ -1,4 +1,7 @@
     ** support envent module **
+R2.13.5     2025/02/27 J. Lorelli
+    Upgrade to event/R4.9.2, timingApi/0.9
+
 R2.13.4     2024/10/14 J. Lorelli
     Upgrade from event R4.9.0 to event R4.9.1
 
